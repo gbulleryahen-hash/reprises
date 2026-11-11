@@ -5,11 +5,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Éditeur de reprises de dressage</title>
-  <link rel="stylesheet" href="style.css?v=2026111144">
+  <link rel="stylesheet" href="style.css?v=2026111146">
 </head>
 <body>
   <header class="topbar no-print">
     <div class="brand">Reprises de dressage</div>
+    <div class="status">
+      <div id="current" class="current" title="Allure et déplacement en cours"></div>
+      <span class="info" tabindex="0" aria-label="Aide sur l’outil en cours">i<span id="hint" class="hint-pop" role="tooltip"></span></span>
+    </div>
     <div class="file-actions">
       <button id="btn-new" title="Commencer une reprise vierge">Nouvelle</button>
       <button id="btn-open" title="Ouvrir une reprise enregistrée sur l'ordinateur">Ouvrir…</button>
@@ -20,14 +24,13 @@
       </select>
       <button id="btn-print" title="Imprimer sur feuilles A4">Imprimer</button>
       <button id="btn-pdf" title="Télécharger la reprise en PDF (A4 paysage)">Exporter en PDF</button>
+      <button id="btn-full" title="Plein écran">⛶ Plein écran</button>
       <input type="file" id="file-input" accept=".json,application/json" hidden>
     </div>
   </header>
 
   <div class="layout">
     <aside class="toolbar no-print" aria-label="Outils">
-      <div id="current" class="current" title="Allure et déplacement en cours"></div>
-      <p id="hint" class="hint"></p>
       <div class="group">
         <span class="label">Outil</span>
         <div id="tools" class="seg"></div>
@@ -68,6 +71,6 @@
   <!-- Flèches de direction (une par allure) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="markers"></defs></svg>
 
-  <script src="app.js?v=2026111144"></script>
+  <script src="app.js?v=2026111146"></script>
 </body>
 </html>

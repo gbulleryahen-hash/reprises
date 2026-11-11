@@ -1340,6 +1340,18 @@
     $('#btn-save').onclick = download;
     $('#btn-print').onclick = () => { buildPrint(); window.print(); };
     $('#btn-pdf').onclick = exportPdf;
+    // plein écran
+    const fsBtn = $('#btn-full');
+    const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const fsLabel = () => { fsBtn.textContent = fsOn() ? '✕ Quitter le plein écran' : '⛶ Plein écran'; };
+    if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) fsBtn.hidden = true;
+    fsBtn.onclick = () => {
+      const de = document.documentElement;
+      if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else (de.requestFullscreen || de.webkitRequestFullscreen).call(de);
+    };
+    document.addEventListener('fullscreenchange', fsLabel);
+    document.addEventListener('webkitfullscreenchange', fsLabel);
     $('#page-orient').onchange = e => { state.page = e.target.value; save(); };
     window.addEventListener('beforeprint', buildPrint);   // aussi pour Ctrl+P
     $('#btn-open').onclick = () => $('#file-input').click();

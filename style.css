@@ -342,3 +342,42 @@ body.tool-eraser .shape:hover { opacity: .35; }
 .title-row:focus-within { border-bottom-color: var(--ink); }
 .total { font-size: 20px; color: var(--muted); white-space: nowrap; }
 .ptotal { font-size: 13pt; font-weight: 700; }
+
+/* ---------- Barre noire : toujours visible, compacte ---------- */
+:root { --topbar-h: 42px; }
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  min-height: var(--topbar-h); padding: 4px 14px; gap: 6px 14px; flex-wrap: nowrap;
+}
+.topbar .brand { font-size: 15px; white-space: nowrap; }
+.topbar button, #page-orient { font-size: 13px; padding: 4px 8px; }
+.topbar .file-actions { flex-wrap: nowrap; gap: 4px; margin-left: auto; }
+.status { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.topbar .current {
+  background: #fff; color: var(--ink); font-size: 13px; padding: 3px 10px; margin: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.info {
+  position: relative; flex: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid #cbbfb3; color: #fff; font: italic 700 13px Georgia, serif;
+  display: inline-flex; align-items: center; justify-content: center; cursor: help;
+}
+.hint-pop {
+  display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-30%);
+  width: 300px; padding: 10px 12px; border-radius: 8px;
+  background: #fff; color: var(--ink); box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  font: normal 400 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.info:hover .hint-pop, .info:focus .hint-pop { display: block; }
+
+/* le panneau d'outils colle juste sous la barre noire */
+.toolbar { top: var(--topbar-h); height: calc(100vh - var(--topbar-h)); }
+
+@media (max-width: 1100px) {
+  .topbar { flex-wrap: wrap; }
+  .topbar .file-actions { flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .topbar { position: static; }
+}
