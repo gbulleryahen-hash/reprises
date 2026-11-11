@@ -380,8 +380,9 @@
       case 'hdedans':   return ln('M-7,7L2,0Q5,-2 8,-0.5', color) + dot(8.5, -0.3, color);
       case 'hdehors':   return ln('M-7,-7L2,0Q5,2 8,0.5', color) + dot(8.5, 0.3, color);
       case 'cession':   return ln('M-9,0H8M3,-4L8.5,0L3,4', color, 2.2);
-      case 'appuyer':   return ln('M-9,0H8M3,-4L8.5,0L3,4M-5,-4L0,4M-5,4L0,-4', color, 2.2);
-      case 'pasdecote': return ln('M-9,0H8M3,-4L8.5,0L3,4M-3,-4L2,4M-3,4L2,-4', color, 2.2);
+      // flèche plus longue : la croix (sur la queue) et la pointe restent bien séparées
+      case 'appuyer':   return ln('M-13,0H11M5.5,-4.2L11.5,0L5.5,4.2M-9,-3.6L-4,3.6M-9,3.6L-4,-3.6', color, 2.2);
+      case 'pasdecote': return ln('M-13,0H11M5.5,-4.2L11.5,0L5.5,4.2M-8,-3.6L-3,3.6M-8,3.6L-3,-3.6', color, 2.2);
       case 'reculer':   return ln('M-8,0H8M-4,-3.5L-8.5,0L-4,3.5M4,-3.5L8.5,0L4,3.5', color, 2);
     }
     return '';
