@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Éditeur de reprises de dressage</title>
-  <link rel="stylesheet" href="style.css?v=2026111121">
+  <link rel="stylesheet" href="style.css?v=2026111122">
 </head>
 <body>
   <header class="topbar no-print">
@@ -13,6 +13,10 @@
       <button id="btn-new" title="Commencer une reprise vierge">Nouvelle</button>
       <button id="btn-open" title="Ouvrir une reprise enregistrée sur l'ordinateur">Ouvrir…</button>
       <button id="btn-save" title="Enregistrer la reprise sur l'ordinateur">Enregistrer</button>
+      <select id="page-orient" title="Orientation des pages imprimées et du PDF">
+        <option value="paysage">Page paysage</option>
+        <option value="portrait">Page portrait</option>
+      </select>
       <button id="btn-print" title="Imprimer sur feuilles A4">Imprimer</button>
       <button id="btn-pdf" title="Télécharger la reprise en PDF (A4 paysage)">Exporter en PDF</button>
       <input type="file" id="file-input" accept=".json,application/json" hidden>
@@ -56,6 +60,6 @@
   <!-- Flèches de direction (une par allure) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="markers"></defs></svg>
 
-  <script src="app.js?v=2026111121"></script>
+  <script src="app.js?v=2026111122"></script>
 </body>
 </html>

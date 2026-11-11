@@ -358,6 +358,7 @@
     return {
       version: 1,
       title: String(data.title || ''),
+      page: data.page === 'portrait' ? 'portrait' : 'paysage',
       cases: data.cases.map(c => ({
         id: uid(),
         size: c.size === 40 ? 40 : 60,
@@ -904,6 +905,7 @@
     };
     wrap.appendChild(add);
     $('#title').value = state.title;
+    $('#page-orient').value = state.page === 'portrait' ? 'portrait' : 'paysage';
   }
 
   // ---------------------------------------------------------------- Barre d'outils
@@ -1043,6 +1045,12 @@
     const pages = [];
     for (let i = 0; i < cells.length; i += PER_PAGE) pages.push(cells.slice(i, i + PER_PAGE));
     const title = esc(state.title || 'Reprise');
+    // orientation de la page (paysage : 4 × 3 cases ; portrait : 3 × 4 cases)
+    const portrait = state.page === 'portrait';
+    root.classList.toggle('portrait', portrait);
+    let ps = $('#page-style');
+    if (!ps) { ps = document.createElement('style'); ps.id = 'page-style'; document.head.appendChild(ps); }
+    ps.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 7mm; }`;
     root.innerHTML = pages.map((pc, n) => `
       <section class="ppage">
         <header class="phead">
@@ -1081,13 +1089,14 @@
       window.scrollTo(0, 0);
       root().classList.add('exporting');
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const portrait = state.page === 'portrait';
+      const pdf = new window.jspdf.jsPDF({ orientation: portrait ? 'portrait' : 'landscape', unit: 'mm', format: 'a4' });
       const pages = [...root().querySelectorAll('.ppage')];
       for (let i = 0; i < pages.length; i++) {
         overlay.textContent = `Création du PDF… page ${i + 1} / ${pages.length}`;
         const canvas = await window.html2canvas(pages[i], { scale: 2.5, backgroundColor: '#ffffff', logging: false });
         if (i) pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 7, 7, 283, 195);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 7, 7, portrait ? 196 : 283, portrait ? 283 : 195);
       }
       // Lien de téléchargement cliqué par l'utilisateur : fonctionne aussi sur Safari / iPad,
       // qui bloquent les téléchargements lancés automatiquement après un long calcul.
@@ -1140,6 +1149,7 @@
     $('#btn-save').onclick = download;
     $('#btn-print').onclick = () => { buildPrint(); window.print(); };
     $('#btn-pdf').onclick = exportPdf;
+    $('#page-orient').onchange = e => { state.page = e.target.value; save(); };
     window.addEventListener('beforeprint', buildPrint);   // aussi pour Ctrl+P
     $('#btn-open').onclick = () => $('#file-input').click();
     $('#file-input').onchange = async e => {
