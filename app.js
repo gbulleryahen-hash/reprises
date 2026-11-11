@@ -18,8 +18,10 @@
   const GAITS = [
     { id: 'pas',        label: 'Pas',              color: '#4a90e2' },
     { id: 'pas_all',    label: 'Pas allongé',      color: '#1a3a8f' },
+    { id: 'trot_ras',   label: 'Trot rassemblé',   color: '#9ccc65' },
     { id: 'trot',       label: 'Trot de travail',  color: '#43a047' },
     { id: 'trot_all',   label: 'Trot allongé',     color: '#1b5e20' },
+    { id: 'galop_ras',  label: 'Galop rassemblé',  color: '#ff7043' },
     { id: 'galop',      label: 'Galop de travail', color: '#e53935' },
     { id: 'galop_all',  label: 'Galop allongé',    color: '#8e0000' },
     { id: 'piaffer',    label: 'Piaffer',          color: '#ab47bc' },
@@ -43,11 +45,12 @@
     { id: 'qt_hanches',  label: 'Quart de tour sur les hanches' },
     { id: 'qt_epaules',  label: 'Quart de tour sur les épaules' },
     { id: 'pirouette',   label: 'Pirouette' },
+    { id: 'simple',      label: 'Changement de pied simple' },
     { id: 'cone',        label: 'Cône' },
     { id: 'barre',       label: 'Barre au sol' },
     { id: 'croisillon',  label: 'Croisillon' },
   ];
-  const UNROTATED = ['halt', 'cone'];
+  const UNROTATED = ['halt', 'cone', 'simple'];
   const BLACK_SYMBOLS = ['halt', 'cone', 'barre', 'croisillon'];
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
@@ -324,6 +327,8 @@
         return ln('M0,0H-9', color) + dot(2.5, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 180, 270, color);
       case 'pirouette':
         return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true);
+      case 'simple':   // couleur fixe (cyan), comme sur les fiches
+        return `<circle r="8" fill="#26c6da" stroke="#fff" stroke-width="1.5"/>`;
       case 'cone':
         return `<polygon points="0,-10 8.5,7 -8.5,7" fill="#222"/>`;
       case 'barre': {

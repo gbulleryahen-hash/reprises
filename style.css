@@ -280,7 +280,9 @@ body.tool-eraser .shape:hover { opacity: .35; }
 }
 .toolbar .seg { gap: 4px; }
 .toolbar .seg button { font-size: 13px; padding: 5px 8px; }
-#tools, #gaits { display: grid; grid-template-columns: 1fr 1fr; }
+#tools { display: grid; grid-template-columns: 1fr 1fr; }
+#gaits { display: flex; flex-direction: column; }
+#gaits button { width: 100%; }
 #moves, #symbols { display: flex; flex-direction: column; }
 #moves button, #symbols button { justify-content: flex-start; width: 100%; }
 .toolbar .hint { flex-basis: auto; font-size: 12px; line-height: 1.35; margin: -6px 0 0; }
