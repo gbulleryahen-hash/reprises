@@ -975,7 +975,8 @@
   // ---------------------------------------------------------------- Impression
   // Mise en page « fiche de reprise » : A4 paysage, 4 colonnes × 3 rangées par page,
   // case numérotée, carrière, mouvements (lettres | consigne), encadré jaune.
-  const PER_PAGE = 12;
+  // paysage : 4 × 3 = 12 cases ; portrait : 4 × 4 = 16 cases
+  const perPage = () => (state.page === 'portrait' ? 16 : 12);
 
   function descHtml(text) {
     return text.split('\n').filter(l => l.trim()).map(l => {
@@ -1043,6 +1044,7 @@
     });
     cells.push(legendCell());
     const pages = [];
+    const PER_PAGE = perPage();
     for (let i = 0; i < cells.length; i += PER_PAGE) pages.push(cells.slice(i, i + PER_PAGE));
     const title = esc(state.title || 'Reprise');
     // orientation de la page (paysage : 4 × 3 cases ; portrait : 3 × 4 cases)

@@ -302,9 +302,11 @@ body.tool-eraser .shape:hover { opacity: .35; }
 .pdf-dl { background: var(--ink); color: #fff; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-size: 16px; }
 .pdf-close { font-size: 14px; }
 
-/* Orientation portrait : 3 colonnes × 4 rangées */
+/* Orientation portrait : 4 colonnes × 4 rangées */
 #print-root.portrait .ppage { width: 196mm; height: 283mm; }
-#print-root.portrait .pgrid { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 1fr); }
+#print-root.portrait .pgrid { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
+#print-root.portrait .pdesc { font-size: 7pt; }
+#print-root.portrait .pnote { font-size: 6.3pt; }
 #print-root.portrait.exporting { width: 196mm; }
 
 #page-orient {
