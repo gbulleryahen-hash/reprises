@@ -48,11 +48,12 @@
     { id: 'pirouette_g', label: 'Pirouette à gauche' },
     { id: 'pirouette_d', label: 'Pirouette à droite' },
     { id: 'simple',      label: 'Changement de pied simple' },
+    { id: 'une_main',    label: 'Guides / rênes dans une main' },
     { id: 'cone',        label: 'Cône' },
     { id: 'barre',       label: 'Barre au sol' },
     { id: 'croisillon',  label: 'Croisillon' },
   ];
-  const UNROTATED = ['halt', 'cone', 'simple'];
+  const UNROTATED = ['halt', 'cone', 'simple', 'une_main'];
   const BLACK_SYMBOLS = ['halt', 'cone', 'barre', 'croisillon'];
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
@@ -342,6 +343,14 @@
         return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true);
       case 'simple':   // couleur fixe (cyan), comme sur les fiches
         return `<circle r="8" fill="#26c6da" stroke="#fff" stroke-width="1.5"/>`;
+      case 'une_main':   // petite main (paume + doigts + pouce)
+        return `<g fill="${color}">` +
+          `<rect x="-6.6" y="-12" width="3.1" height="11" rx="1.55"/>` +
+          `<rect x="-3.1" y="-13.5" width="3.1" height="12.5" rx="1.55"/>` +
+          `<rect x="0.4" y="-13" width="3.1" height="12" rx="1.55"/>` +
+          `<rect x="3.9" y="-11" width="3.1" height="10" rx="1.55"/>` +
+          `<rect x="-6.8" y="-3.5" width="14" height="13" rx="4.5"/>` +
+          `</g><path d="M-5,4.5L-10.5,-1.5" stroke="${color}" stroke-width="3.3" stroke-linecap="round" fill="none"/>`;
       case 'cone':
         return `<polygon points="0,-10 8.5,7 -8.5,7" fill="#222"/>`;
       case 'barre': {
