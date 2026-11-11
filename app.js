@@ -79,7 +79,12 @@
 
   function snapPoints(size) {
     const L = size, d = LETTERS[size];
-    const pts = [{ n: 'A', x: 10, y: 0 }, { n: 'C', x: 10, y: L }];
+    const pts = [
+      { n: 'A', x: 10, y: 0 }, { n: 'C', x: 10, y: L },
+      // coins de la piste
+      { n: 'coin', x: 0, y: 0 }, { n: 'coin', x: 20, y: 0 },
+      { n: 'coin', x: 0, y: L }, { n: 'coin', x: 20, y: L },
+    ];
     d.wall.forEach(([l, r, y]) => pts.push({ n: l, x: 0, y }, { n: r, x: 20, y }));
     d.center.forEach(([n, y]) => pts.push({ n, x: 10, y }));
     return pts;
