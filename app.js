@@ -81,12 +81,16 @@
       wall:   [['K', 'F', 6], ['V', 'P', 18], ['E', 'B', 30], ['S', 'R', 42], ['H', 'M', 54]],
       center: [['D', 6], ['L', 18], ['X', 30], ['I', 42], ['G', 54]],
     },
-    // 20 × 80 : lettres de coin à 6 m, puis espacées régulièrement (17 m)
+    // 80 × 40 : lettres de coin à 6 m, puis espacées régulièrement (17 m)
     80: {
       wall:   [['K', 'F', 6], ['V', 'P', 23], ['E', 'B', 40], ['S', 'R', 57], ['H', 'M', 74]],
       center: [['D', 6], ['L', 23], ['X', 40], ['I', 57], ['G', 74]],
     },
   };
+
+  // Largeur de la carrière selon sa longueur : 40 × 20, 60 × 20, 80 × 40
+  const arenaW = size => (size === 80 ? 40 : 20);
+  const sizeLabel = size => `${size} × ${arenaW(size)}`;
 
   // ---------------------------------------------------------------- Utilitaires
   const $ = sel => document.querySelector(sel);
@@ -100,32 +104,35 @@
   // orient : 'v' (C en haut), 'v2' (C en bas), 'h' (C à droite), 'h2' (C à gauche)
   function geom(size, orient) {
     const L = size, v = !String(orient).startsWith('h'), flip = String(orient).endsWith('2');
-    const W = v ? 20 * S + 2 * M : L * S + 2 * M;
-    const H = v ? L * S + 2 * M : 20 * S + 2 * M;
+    const w = arenaW(size);
+    const W = v ? w * S + 2 * M : L * S + 2 * M;
+    const H = v ? L * S + 2 * M : w * S + 2 * M;
     // Verticale : A en bas, C en haut. Horizontale : A à gauche, C à droite, E en haut.
     const to0 = p => v ? { x: M + p.x * S, y: M + (L - p.y) * S } : { x: M + p.y * S, y: M + p.x * S };
     const from0 = q => v ? { x: (q.x - M) / S, y: L - (q.y - M) / S } : { x: (q.y - M) / S, y: (q.x - M) / S };
     // carrière inversée = demi-tour (rotation de 180°) du dessin
     const turn = q => ({ x: W - q.x, y: H - q.y });
     return {
-      L, v, W, H,
+      L, v, W, H, w,
       to: flip ? p => turn(to0(p)) : to0,
       from: flip ? q => from0(turn(q)) : from0,
     };
   }
 
+  const quarterXs = size => [arenaW(size) / 4, arenaW(size) * 3 / 4];
+
   function snapPoints(size) {
-    const L = size, d = LETTERS[size];
+    const L = size, d = LETTERS[size], w = arenaW(size), h = w / 2;
     const pts = [
-      { n: 'A', x: 10, y: 0 }, { n: 'C', x: 10, y: L },
+      { n: 'A', x: h, y: 0 }, { n: 'C', x: h, y: L },
       // coins de la piste
-      { n: 'coin', x: 0, y: 0 }, { n: 'coin', x: 20, y: 0 },
-      { n: 'coin', x: 0, y: L }, { n: 'coin', x: 20, y: L },
+      { n: 'coin', x: 0, y: 0 }, { n: 'coin', x: w, y: 0 },
+      { n: 'coin', x: 0, y: L }, { n: 'coin', x: w, y: L },
     ];
-    d.wall.forEach(([l, r, y]) => pts.push({ n: l, x: 0, y }, { n: r, x: 20, y }));
-    d.center.forEach(([n, y]) => pts.push({ n, x: 10, y }));
-    // lignes du quart (5 m des grands côtés), à hauteur des lettres et aux extrémités
-    for (const y of [0, L, ...d.wall.map(w => w[2])]) pts.push({ n: 'quart', x: 5, y }, { n: 'quart', x: 15, y });
+    d.wall.forEach(([l, r, y]) => pts.push({ n: l, x: 0, y }, { n: r, x: w, y }));
+    d.center.forEach(([n, y]) => pts.push({ n, x: h, y }));
+    // lignes du quart, à hauteur des lettres et aux extrémités
+    for (const y of [0, L, ...d.wall.map(q => q[2])]) for (const qx of quarterXs(size)) pts.push({ n: 'quart', x: qx, y });
     return pts;
   }
 
@@ -139,7 +146,7 @@
     if (best) return { x: best.x, y: best.y, n: best.n };
     // sinon : accroche n'importe où le long des deux lignes du quart
     if (p.y >= 0 && p.y <= c.size) {
-      for (const qx of [5, 15]) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'quart' };
+      for (const qx of quarterXs(c.size)) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'quart' };
     }
     return { x: p.x, y: p.y };
   }
@@ -200,7 +207,7 @@
     if (len < 0.6) {
       // direction par défaut : vers l'intérieur de la carrière
       if (a.x <= 0.5) [vx, vy] = [1, 0];
-      else if (a.x >= 19.5) [vx, vy] = [-1, 0];
+      else if (a.x >= arenaW(c.size) - 0.5) [vx, vy] = [-1, 0];
       else if (a.y <= 0.5) [vx, vy] = [0, 1];
       else if (a.y >= c.size - 0.5) [vx, vy] = [0, -1];
       else [vx, vy] = [1, 0];
@@ -455,15 +462,15 @@
   function arenaSvg(c, g) {
     const L = c.size, d = LETTERS[c.size];
     // Le bord est dessiné à PAD mètres à l'extérieur de la piste :
-    // les points d'accroche (x = 0 / 20, y = 0 / L) restent sur la piste.
-    const P = PAD;
-    const p0 = g.to({ x: -P, y: -P }), p1 = g.to({ x: 20 + P, y: L + P });
+    // les points d'accroche (x = 0 / largeur, y = 0 / L) restent sur la piste.
+    const P = PAD, w = g.w, h = w / 2;
+    const p0 = g.to({ x: -P, y: -P }), p1 = g.to({ x: w + P, y: L + P });
     const x = Math.min(p0.x, p1.x), y = Math.min(p0.y, p1.y);
-    const w = Math.abs(p1.x - p0.x), h = Math.abs(p1.y - p0.y);
-    let s = `<rect class="arena" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
-    const a = g.to({ x: 10, y: -P }), cc = g.to({ x: 10, y: L + P });
+    const rw = Math.abs(p1.x - p0.x), rh = Math.abs(p1.y - p0.y);
+    let s = `<rect class="arena" x="${x}" y="${y}" width="${rw}" height="${rh}"/>`;
+    const a = g.to({ x: h, y: -P }), cc = g.to({ x: h, y: L + P });
     s += `<line class="centerline" x1="${a.x}" y1="${a.y}" x2="${cc.x}" y2="${cc.y}"/>`;
-    for (const qx of [5, 15]) {
+    for (const qx of quarterXs(c.size)) {
       const q1 = g.to({ x: qx, y: 0 }), q2 = g.to({ x: qx, y: L });
       s += `<line class="quarterline" x1="${q1.x}" y1="${q1.y}" x2="${q2.x}" y2="${q2.y}"/>`;
     }
@@ -478,10 +485,10 @@
     };
     for (const [l, r, yy] of d.wall) {
       s += tick({ x: -P, y: yy }, { x: -P - 0.7, y: yy }) + label(l, { x: -P - 1.9, y: yy });
-      s += tick({ x: 20 + P, y: yy }, { x: 20 + P + 0.7, y: yy }) + label(r, { x: 20 + P + 1.9, y: yy });
+      s += tick({ x: w + P, y: yy }, { x: w + P + 0.7, y: yy }) + label(r, { x: w + P + 1.9, y: yy });
     }
-    for (const [n, yy] of d.center) s += label(n, { x: 10, y: yy }, 'cletter');
-    s += label('A', { x: 10, y: -P - 1.9 }) + label('C', { x: 10, y: L + P + 1.9 });
+    for (const [n, yy] of d.center) s += label(n, { x: h, y: yy }, 'cletter');
+    s += label('A', { x: h, y: -P - 1.9 }) + label('C', { x: h, y: L + P + 1.9 });
     return s;
   }
 
@@ -569,7 +576,7 @@
     const n = Math.max(1, Math.round(len / step));
     const ds = Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
     // côté « intérieur » : centre du cercle, sinon centre de la carrière
-    const ref = closed ? g.to(sh.c) : g.to({ x: 10, y: g.L / 2 });
+    const ref = closed ? g.to(sh.c) : g.to({ x: g.w / 2, y: g.L / 2 });
     // axe des grands côtés à l'écran (pour cession / appuyer : le cheval reste parallèle au grand côté)
     const o = g.to({ x: 0, y: 0 }), o1 = g.to({ x: 0, y: 1 });
     const ey = { x: (o1.x - o.x) / S, y: (o1.y - o.y) / S };
@@ -842,7 +849,7 @@
         <span class="num">Case ${idx + 1}</span>
         <div class="controls no-print">
           <select data-k="size" title="Dimensions">
-            <option value="40">20 × 40</option><option value="60">20 × 60</option><option value="80">20 × 80</option>
+            <option value="40">40 × 20</option><option value="60">60 × 20</option><option value="80">80 × 40</option>
           </select>
           <select data-k="orient" title="Orientation">
             <option value="v">Verticale, C en haut</option><option value="v2">Verticale, C en bas</option>
@@ -1107,7 +1114,7 @@
     let root = $('#print-root');
     if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
     const sizes = [...new Set(state.cases.map(c => c.size))];
-    const sizeTxt = sizes.length === 1 ? `20 x ${sizes[0]}` : '';
+    const sizeTxt = sizes.length === 1 ? sizeLabel(sizes[0]) : '';
     const cells = state.cases.map((c, i) => {
       const r = refs.get(c.id);
       const svg = standaloneSvg(r.svg);
