@@ -33,7 +33,7 @@
   const TOOLS = [
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
     { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap pour annuler. Les angles sont arrondis en arcs de 6 m.' },
-    { id: 'circle', label: '◯ Cercle',     hint: 'Cliquez sur la lettre où le cercle touche la piste, puis glissez vers l’intérieur du cercle.' },
+    { id: 'circle', label: '◯ Cercle',     hint: 'Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez, puis bougez la souris dans le sens de rotation et cliquez pour valider (Échap pour annuler).' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Glissez de la lettre de départ à la lettre d’arrivée, puis placez la souris du côté de l’arc et cliquez pour valider (Échap pour annuler).' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
@@ -518,6 +518,7 @@
       case 'line': return filletPoints(sh.p, CORNER_R).map(g.to);
       case 'arc': return arcPoints(sh.a, sh.b, sh.r, sh.side).map(g.to);
       case 'circle': {
+        if (sh.dir) return circlePoints(sh).map(g.to);
         const q = g.to(sh.c), R = sh.r * S;
         return Array.from({ length: 73 }, (_, k) => {
           const t = k / 72 * Math.PI * 2;
@@ -544,6 +545,21 @@
       }
     }
     return [];
+  }
+
+  // Cercle parcouru depuis son point de départ, dans le sens choisi (dir = +1 / -1)
+  function circlePoints(sh) {
+    const t0 = Math.atan2(sh.a.y - sh.c.y, sh.a.x - sh.c.x);
+    return Array.from({ length: 97 }, (_, k) => {
+      const t = t0 + sh.dir * k / 96 * Math.PI * 2;
+      return { x: sh.c.x + sh.r * Math.cos(t), y: sh.c.y + sh.r * Math.sin(t) };
+    });
+  }
+  // Sens de rotation d'après la position de la souris par rapport au point de départ
+  function circleDir(a, ctr, cursor) {
+    const t0 = Math.atan2(a.y - ctr.y, a.x - ctr.x);
+    const tan = { x: -Math.sin(t0), y: Math.cos(t0) };
+    return (cursor.x - a.x) * tan.x + (cursor.y - a.y) * tan.y >= 0 ? 1 : -1;
   }
 
   // Position et angle (degrés) aux distances demandées le long d'une polyligne
@@ -584,8 +600,8 @@
     if (len < 15) return '';
     const closed = sh.t === 'circle';
     if (move === 'droit') {
-      if (closed) return '';                       // un cercle n'a pas de sens défini
-      const usable = len - 25;                     // la flèche de fin existe déjà
+      if (closed && !sh.dir) return '';            // ancien cercle sans sens défini
+      const usable = closed ? len : len - 25;      // la flèche de fin existe déjà (sauf cercle)
       const n = Math.max(1, Math.round(usable / (60 * K())));
       const ds = Array.from({ length: n }, (_, i) => (i + 0.5) * usable / n);
       return pointsAlong(poly, ds).map(p =>
@@ -713,6 +729,9 @@
       const all = drag.pts.concat(drag.cursor ? [drag.cursor] : []);
       s = `<path d="${polyPath(filletPoints(all, CORNER_R).map(g.to))}" ${st} stroke-dasharray="6 5"/>` +
         drag.pts.map(p => { const q = g.to(p); return `<circle cx="${q.x}" cy="${q.y}" r="3.5" fill="${col}"/>`; }).join('');
+    } else if (drag.tool === 'circle' && drag.phase === 'dir') {
+      const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: ui.diam / 2, a: drag.a, dir: circleDir(drag.a, drag.ctr, drag.cursor) };
+      s = `<g opacity=".75">${shapeSvg(sh, g, -1)}</g>`;
     } else if (drag.tool === 'circle') {
       const ctr = circleCenter(drag.a, drag.raw, ui.diam / 2, c), q = g.to(ctr);
       s = `<circle cx="${q.x}" cy="${q.y}" r="${ui.diam / 2 * S}" ${st} stroke-dasharray="6 5"/>` +
@@ -810,6 +829,13 @@
       e.preventDefault();
       return;
     }
+    if (tool === 'circle' && drag && drag.phase === 'dir') {
+      const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: ui.diam / 2, a: drag.a, dir: circleDir(drag.a, drag.ctr, raw) };
+      drag = null;
+      drawPreview(c);
+      mutate(c, () => c.shapes.push(sh));
+      return;
+    }
     if (tool === 'arc' && drag && drag.phase === 'side') {
       const sh = { t: 'arc', g: ui.gait, m: ui.move, a: drag.a, b: drag.b, r: ui.diam / 2, side: arcSide(drag.a, drag.b, raw) };
       drag = null;
@@ -831,7 +857,7 @@
     const raw = g.from(svgPoint(r.svg, e));
     showSnap(c, raw);
     if (!drag || drag.caseId !== c.id) return;
-    if (drag.phase === 'side') { drag.cursor = raw; drawPreview(c); return; }
+    if (drag.phase) { drag.cursor = raw; drawPreview(c); return; }
     if (drag.tool === 'free') drag.pts.push(raw);
     else if (drag.tool === 'line') { const p = snap(raw, c); drag.cursor = pt(p.x, p.y); }
     else { const p = snap(raw, c); drag.b = pt(p.x, p.y); drag.raw = raw; }
@@ -839,7 +865,7 @@
   }
 
   function onUp(e, c) {
-    if (!drag || drag.caseId !== c.id || drag.phase === 'side' || drag.tool === 'line') return;
+    if (!drag || drag.caseId !== c.id || drag.phase || drag.tool === 'line') return;
     const d = drag;
     let sh = null;
     if (d.tool === 'free') {
@@ -848,7 +874,14 @@
     } else if (d.tool === 'sym') {
       sh = { t: 'sym', k: d.k, g: ui.gait, x: d.a.x, y: d.a.y, a: symAngle(d) };
     } else if (d.tool === 'circle') {
-      sh = { t: 'circle', g: ui.gait, m: ui.move, c: circleCenter(d.a, d.raw, ui.diam / 2, c), r: ui.diam / 2 };
+      // 2e temps : le sens de rotation suit la souris, un clic valide
+      d.ctr = circleCenter(d.a, d.raw, ui.diam / 2, c);
+      const tc = Math.atan2(d.a.y - d.ctr.y, d.a.x - d.ctr.x);
+      d.a = pt(d.ctr.x + ui.diam / 2 * Math.cos(tc), d.ctr.y + ui.diam / 2 * Math.sin(tc));
+      d.phase = 'dir';
+      d.cursor = geom(c.size, c.orient).from(svgPoint(refs.get(c.id).svg, e));
+      drawPreview(c);
+      return;
     } else if (d.tool === 'arc') {
       if (dist(d.a, d.b) > 0.3) {
         // 2e temps : choisir le côté de l'arc puis cliquer
