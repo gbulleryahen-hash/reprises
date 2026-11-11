@@ -94,15 +94,20 @@
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // Géométrie d'une carrière selon taille et orientation
+  // orient : 'v' (C en haut), 'v2' (C en bas), 'h' (C à droite), 'h2' (C à gauche)
   function geom(size, orient) {
-    const L = size, v = orient !== 'h';
+    const L = size, v = !String(orient).startsWith('h'), flip = String(orient).endsWith('2');
+    const W = v ? 20 * S + 2 * M : L * S + 2 * M;
+    const H = v ? L * S + 2 * M : 20 * S + 2 * M;
+    // Verticale : A en bas, C en haut. Horizontale : A à gauche, C à droite, E en haut.
+    const to0 = p => v ? { x: M + p.x * S, y: M + (L - p.y) * S } : { x: M + p.y * S, y: M + p.x * S };
+    const from0 = q => v ? { x: (q.x - M) / S, y: L - (q.y - M) / S } : { x: (q.y - M) / S, y: (q.x - M) / S };
+    // carrière inversée = demi-tour (rotation de 180°) du dessin
+    const turn = q => ({ x: W - q.x, y: H - q.y });
     return {
-      L, v,
-      W: v ? 20 * S + 2 * M : L * S + 2 * M,
-      H: v ? L * S + 2 * M : 20 * S + 2 * M,
-      // Verticale : A en bas, C en haut. Horizontale : A à gauche, C à droite, E en haut.
-      to: p => v ? { x: M + p.x * S, y: M + (L - p.y) * S } : { x: M + p.y * S, y: M + p.x * S },
-      from: q => v ? { x: (q.x - M) / S, y: L - (q.y - M) / S } : { x: (q.y - M) / S, y: (q.x - M) / S },
+      L, v, W, H,
+      to: flip ? p => turn(to0(p)) : to0,
+      from: flip ? q => from0(turn(q)) : from0,
     };
   }
 
@@ -368,7 +373,7 @@
       cases: data.cases.map(c => ({
         id: uid(),
         size: [40, 60, 80].includes(c.size) ? c.size : 60,
-        orient: c.orient === 'h' ? 'h' : 'v',
+        orient: ['v', 'v2', 'h', 'h2'].includes(c.orient) ? c.orient : 'v',
         text: String(c.text || ''),
         note: String(c.note || ''),
         shapes: Array.isArray(c.shapes) ? c.shapes : [],
@@ -816,7 +821,8 @@
             <option value="40">20 × 40</option><option value="60">20 × 60</option><option value="80">20 × 80</option>
           </select>
           <select data-k="orient" title="Orientation">
-            <option value="v">Verticale</option><option value="h">Horizontale</option>
+            <option value="v">Verticale, C en haut</option><option value="v2">Verticale, C en bas</option>
+            <option value="h">Horizontale, C à droite</option><option value="h2">Horizontale, C à gauche</option>
           </select>
           <button class="icon" data-act="undo" title="Annuler (Ctrl+Z)">↶</button>
           <button class="icon" data-act="clear" title="Effacer le dessin">⌧</button>
