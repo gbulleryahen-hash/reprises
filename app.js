@@ -432,10 +432,10 @@
   if (!state.cases.length) state.cases.push(newCase());
   // Réglages de la barre d'outils : ils restent enclenchés (et sont mémorisés)
   const UI_KEY = 'reprises.outils';
-  const ui = { tool: 'free', gait: 'trot', move: 'droit', diam: 10, snap: true };
+  const ui = { tool: 'line', gait: 'trot', move: 'droit', diam: 10, snap: true };
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
-    if (saved.tool && (TOOLS.some(t => t.id === saved.tool) || (saved.tool.startsWith('sym:') && SYMBOLS.some(f => 'sym:' + f.id === saved.tool)))) ui.tool = saved.tool;
+    // l'outil n'est pas repris d'une visite à l'autre : on démarre toujours sur « Ligne »
     if (GAIT[saved.gait]) ui.gait = saved.gait;
     if (MOVE_IDS.includes(saved.move)) ui.move = saved.move;
     if (DIAMS.includes(saved.diam)) ui.diam = saved.diam;
@@ -1018,7 +1018,7 @@
       if (b.dataset.move) {
         ui.move = b.dataset.move;
         // choisir un déplacement réactive un outil de tracé si besoin
-        if (ui.tool === 'eraser' || ui.tool.startsWith('sym:')) ui.tool = 'free';
+        if (ui.tool === 'eraser' || ui.tool.startsWith('sym:')) ui.tool = 'line';
       }
       if (b.dataset.diam) ui.diam = +b.dataset.diam;
       saveUi();
