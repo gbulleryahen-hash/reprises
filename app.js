@@ -869,7 +869,7 @@
     art.className = 'case';
     art.innerHTML = `
       <div class="case-head">
-        <span class="num">Case ${idx + 1}</span>
+        <span class="num">Figure ${idx + 1}</span>
         <div class="controls no-print">
           <select data-k="size" title="Dimensions">
             <option value="40">40 × 20</option><option value="60">60 × 20</option><option value="80">80 × 40</option>
@@ -882,7 +882,7 @@
           <button class="icon" data-act="clear" title="Effacer le dessin">⌧</button>
           <button class="icon" data-act="up" title="Monter">↑</button>
           <button class="icon" data-act="down" title="Descendre">↓</button>
-          <button class="icon danger" data-act="del" title="Supprimer la case">✕</button>
+          <button class="icon danger" data-act="del" title="Supprimer la figure">✕</button>
         </div>
       </div>
       <div class="drawing">
@@ -969,7 +969,7 @@
           if (i < state.cases.length - 1) { state.cases.splice(i, 1); state.cases.splice(i + 1, 0, c); save(); renderAll(); }
           break;
         case 'del':
-          if ((c.shapes.length || c.textL || c.textR || c.note) && !confirm('Supprimer cette case ?')) return;
+          if ((c.shapes.length || c.textL || c.textR || c.note) && !confirm('Supprimer cette figure ?')) return;
           state.cases.splice(i, 1);
           if (!state.cases.length) state.cases.push(newCase(c.size, c.orient));
           save(); renderAll();
@@ -995,7 +995,7 @@
     state.cases.forEach((c, i) => wrap.appendChild(buildCase(c, i)));
     const add = document.createElement('button');
     add.className = 'add-case no-print';
-    add.title = 'Ajouter une case';
+    add.title = 'Ajouter une figure';
     add.textContent = '+';
     add.onclick = () => {
       const last = state.cases[state.cases.length - 1];
