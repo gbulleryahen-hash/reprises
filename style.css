@@ -332,3 +332,6 @@ body.tool-eraser .shape:hover { opacity: .35; }
   border-radius: 2px; background: #c9bcae;
 }
 .split-handle:hover::after, .split-handle:active::after { background: var(--ink); }
+
+#sym-scale { width: 100%; accent-color: var(--ink); }
+#sym-scale-val { float: right; text-transform: none; letter-spacing: 0; color: var(--ink); }

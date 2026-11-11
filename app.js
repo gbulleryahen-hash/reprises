@@ -406,6 +406,9 @@
     while (L.length && !L[L.length - 1] && !R[R.length - 1]) { L.pop(); R.pop(); }
     return { textL: L.join('\n'), textR: R.join('\n') };
   }
+  // taille des symboles (curseur), 1 = taille normale
+  const clampScale = v => (typeof v === 'number' && v >= 0.5 && v <= 2 ? v : 1);
+  const K = () => clampScale(state.symScale);
   // largeur de la colonne des lettres, en % (séparateur mobile)
   const clampSplit = v => (typeof v === 'number' && v >= 8 && v <= 60 ? v : 18);
   const applySplit = () => document.documentElement.style.setProperty('--split', clampSplit(state.split) + '%');
@@ -417,6 +420,7 @@
       title: String(data.title || ''),
       page: data.page === 'portrait' ? 'portrait' : 'paysage',
       split: clampSplit(data.split),
+      symScale: clampScale(data.symScale),
       cases: data.cases.map(c => ({
         id: uid(),
         size: [40, 60, 80].includes(c.size) ? c.size : 60,
@@ -582,16 +586,16 @@
     if (move === 'droit') {
       if (closed) return '';                       // un cercle n'a pas de sens défini
       const usable = len - 25;                     // la flèche de fin existe déjà
-      const n = Math.max(1, Math.round(usable / 60));
+      const n = Math.max(1, Math.round(usable / (60 * K())));
       const ds = Array.from({ length: n }, (_, i) => (i + 0.5) * usable / n);
       return pointsAlong(poly, ds).map(p =>
-        `<path transform="translate(${r2(p.x)},${r2(p.y)}) rotate(${r2(p.ang)})" d="M-5,-5.5L3,0L-5,5.5" ` +
+        `<path transform="translate(${r2(p.x)},${r2(p.y)}) rotate(${r2(p.ang)}) scale(${K()})" d="M-5,-5.5L3,0L-5,5.5" ` +
         `fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
       ).join('');
     }
     // Déplacements latéraux : le symbole est répété le long du parcours,
     // orienté selon le sens de la marche et le côté intérieur.
-    const step = 72;
+    const step = 72 * K();
     const n = Math.max(1, Math.round(len / step));
     const ds = Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
     // côté « intérieur » : centre du cercle, sinon centre de la carrière
@@ -614,7 +618,7 @@
       } else {
         tr += `rotate(${r2(p.ang)}) scale(1,${side})`;
       }
-      return `<g transform="${tr} scale(1.65)">${moveGlyph(move, col)}</g>`;
+      return `<g transform="${tr} scale(${r2(1.65 * K())})">${moveGlyph(move, col)}</g>`;
     }).join('');
   }
 
@@ -666,8 +670,8 @@
       case 'sym': {
         const q = g.to(sh);
         const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
-        vis = `<g transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(1.35)">${glyph(sh.k, scol)}</g>`;
-        hit = `<circle class="hit-fill" cx="${q.x}" cy="${q.y}" r="18"/>`;
+        vis = `<g transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${r2(1.35 * K())})">${glyph(sh.k, scol)}</g>`;
+        hit = `<circle class="hit-fill" cx="${q.x}" cy="${q.y}" r="${r2(18 * K())}"/>`;
         break;
       }
       default: return '';
@@ -702,7 +706,7 @@
     if (drag.tool === 'sym') {
       const sh = { k: drag.k, x: drag.a.x, y: drag.a.y, a: symAngle(drag) }, q = g.to(sh);
       const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
-      s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(1.35)">${glyph(sh.k, scol)}</g>`;
+      s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${r2(1.35 * K())})">${glyph(sh.k, scol)}</g>`;
     } else if (drag.tool === 'free') {
       s = `<path d="${polyPath(drag.pts.map(g.to))}" ${st}/>`;
     } else if (drag.tool === 'line') {
@@ -1002,6 +1006,8 @@
     };
     wrap.appendChild(add);
     $('#title').value = state.title;
+    $('#sym-scale').value = K();
+    $('#sym-scale-val').textContent = Math.round(K() * 100) + ' %';
     applySplit();
     $('#page-orient').value = state.page === 'portrait' ? 'portrait' : 'paysage';
   }
@@ -1034,6 +1040,14 @@
       saveUi();
       refreshToolbar();
     });
+    // curseur de taille des symboles (enregistré avec la reprise)
+    $('#sym-scale').oninput = e => {
+      state.symScale = clampScale(+e.target.value);
+      $('#sym-scale-val').textContent = Math.round(state.symScale * 100) + ' %';
+      state.cases.forEach(renderShapes);
+    };
+    $('#sym-scale').onchange = save;
+    $('#sym-scale').ondblclick = () => { state.symScale = 1; renderAll(); save(); };
     $('#snap').checked = ui.snap;
     $('#snap').onchange = e => { ui.snap = e.target.checked; saveUi(); };
 

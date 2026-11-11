@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Éditeur de reprises de dressage</title>
-  <link rel="stylesheet" href="style.css?v=2026111138">
+  <link rel="stylesheet" href="style.css?v=2026111139">
 </head>
 <body>
   <header class="topbar no-print">
@@ -47,6 +47,10 @@
         <span class="label">Figures</span>
         <div id="symbols" class="seg"></div>
       </div>
+      <div class="group">
+        <span class="label">Taille des symboles <span id="sym-scale-val">100 %</span></span>
+        <input type="range" id="sym-scale" min="0.5" max="2" step="0.05" value="1" title="Double-clic : taille normale">
+      </div>
       <label class="toggle"><input type="checkbox" id="snap" checked> Accrocher aux lettres</label>
     </aside>
 
@@ -60,6 +64,6 @@
   <!-- Flèches de direction (une par allure) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="markers"></defs></svg>
 
-  <script src="app.js?v=2026111138"></script>
+  <script src="app.js?v=2026111139"></script>
 </body>
 </html>
