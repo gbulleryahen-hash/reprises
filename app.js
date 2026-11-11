@@ -29,7 +29,7 @@
 
   const TOOLS = [
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
-    { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez-glissez d’une lettre à une autre.' },
+    { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap pour annuler. Les angles sont arrondis en arcs de 6 m.' },
     { id: 'circle', label: '◯ Cercle',     hint: 'Cliquez sur la lettre où le cercle touche la piste, puis glissez vers l’intérieur du cercle.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Glissez de la lettre de départ à la lettre d’arrivée, puis placez la souris du côté de l’arc et cliquez pour valider (Échap pour annuler).' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
@@ -209,6 +209,41 @@
     return out;
   }
 
+  // Ligne brisée dont les angles sont arrondis par des arcs (rayon r, en m)
+  function filletPoints(pts, r) {
+    if (pts.length < 3) return pts.slice();
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const A = pts[i - 1], B = pts[i], C = pts[i + 1];
+      const lab = dist(A, B), lbc = dist(B, C);
+      if (lab < 1e-6 || lbc < 1e-6) continue;
+      const u1 = { x: (A.x - B.x) / lab, y: (A.y - B.y) / lab };
+      const u2 = { x: (C.x - B.x) / lbc, y: (C.y - B.y) / lbc };
+      const theta = Math.acos(Math.max(-1, Math.min(1, u1.x * u2.x + u1.y * u2.y)));
+      if (theta > Math.PI - 0.02 || theta < 0.02) { out.push(B); continue; }   // pas d'angle
+      // distance du sommet aux points de tangence, limitée à la moitié des segments
+      let t = r / Math.tan(theta / 2);
+      t = Math.min(t, lab / 2, lbc / 2);
+      const rr = t * Math.tan(theta / 2);
+      const T1 = { x: B.x + u1.x * t, y: B.y + u1.y * t };
+      const T2 = { x: B.x + u2.x * t, y: B.y + u2.y * t };
+      const bis = { x: u1.x + u2.x, y: u1.y + u2.y };
+      const bl = Math.hypot(bis.x, bis.y);
+      const dc = rr / Math.sin(theta / 2);
+      const O = { x: B.x + bis.x / bl * dc, y: B.y + bis.y / bl * dc };
+      const a1 = Math.atan2(T1.y - O.y, T1.x - O.x), a2 = Math.atan2(T2.y - O.y, T2.x - O.x);
+      const da = Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1));   // le plus court chemin
+      const N = Math.max(4, Math.ceil(Math.abs(da) / (Math.PI / 24)));
+      for (let k = 0; k <= N; k++) {
+        const a = a1 + da * k / N;
+        out.push({ x: O.x + rr * Math.cos(a), y: O.y + rr * Math.sin(a) });
+      }
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+  const CORNER_R = 3;   // arcs de 6 m de diamètre dans les angles
+
   // ---------------------------------------------------------------- Symboles
   function glyph(kind, color) {
     switch (kind) {
@@ -332,7 +367,7 @@
   // Points (écran) le long du tracé, pour y poser les flèches / symboles
   function screenPolyline(sh, g) {
     switch (sh.t) {
-      case 'line': return sh.p.map(g.to);
+      case 'line': return filletPoints(sh.p, CORNER_R).map(g.to);
       case 'arc': return arcPoints(sh.a, sh.b, sh.r, sh.side).map(g.to);
       case 'circle': {
         const q = g.to(sh.c), R = sh.r * S;
@@ -430,7 +465,7 @@
     let vis = '', hit = '';
     switch (sh.t) {
       case 'line': {
-        const d = polyPath(sh.p.map(g.to));
+        const d = polyPath(filletPoints(sh.p, CORNER_R).map(g.to));
         vis = `<path d="${d}" ${stroke} ${arrow}/>`; hit = `<path class="hit" d="${d}"/>`;
         break;
       }
@@ -488,7 +523,9 @@
     if (drag.tool === 'free') {
       s = `<path d="${polyPath(drag.pts.map(g.to))}" ${st}/>`;
     } else if (drag.tool === 'line') {
-      s = `<path d="${polyPath([drag.a, drag.b].map(g.to))}" ${st} stroke-dasharray="6 5"/>`;
+      const all = drag.pts.concat(drag.cursor ? [drag.cursor] : []);
+      s = `<path d="${polyPath(filletPoints(all, CORNER_R).map(g.to))}" ${st} stroke-dasharray="6 5"/>` +
+        drag.pts.map(p => { const q = g.to(p); return `<circle cx="${q.x}" cy="${q.y}" r="3.5" fill="${col}"/>`; }).join('');
     } else if (drag.tool === 'circle') {
       const ctr = circleCenter(drag.a, drag.raw, ui.diam / 2, c), q = g.to(ctr);
       s = `<circle cx="${q.x}" cy="${q.y}" r="${ui.diam / 2 * S}" ${st} stroke-dasharray="6 5"/>` +
@@ -531,6 +568,17 @@
     }
   }
 
+  // Termine la ligne en cours (points cliqués successivement)
+  function finishLine() {
+    if (!drag || drag.tool !== 'line') return;
+    const c = state.cases.find(x => x.id === drag.caseId);
+    const pts = drag.pts.filter((p, i, arr) => i === 0 || dist(p, arr[i - 1]) > 0.3);
+    drag = null;
+    if (!c) return;
+    drawPreview(c);
+    if (pts.length >= 2) mutate(c, () => c.shapes.push({ t: 'line', g: ui.gait, m: ui.move, p: pts }));
+  }
+
   function onDown(e, c) {
     if (e.button !== 0) return;
     lastCaseId = c.id;
@@ -548,6 +596,20 @@
     }
     if (tool.startsWith('sym:')) {
       mutate(c, () => c.shapes.push({ t: 'sym', k: tool.slice(4), g: ui.gait, x: r2(p.x), y: r2(p.y) }));
+      return;
+    }
+    if (tool === 'line') {
+      const q = pt(p.x, p.y);
+      if (!drag) {
+        drag = { caseId: c.id, tool, pts: [q], cursor: q };
+      } else {
+        const last = drag.pts[drag.pts.length - 1];
+        // double-clic, ou clic sur le dernier point : on termine
+        if (e.detail >= 2 || dist(last, q) < 0.4) { finishLine(); return; }
+        drag.pts.push(q);
+      }
+      drawPreview(c);
+      e.preventDefault();
       return;
     }
     if (tool === 'arc' && drag && drag.phase === 'side') {
@@ -573,19 +635,18 @@
     if (!drag || drag.caseId !== c.id) return;
     if (drag.phase === 'side') { drag.cursor = raw; drawPreview(c); return; }
     if (drag.tool === 'free') drag.pts.push(raw);
+    else if (drag.tool === 'line') { const p = snap(raw, c); drag.cursor = pt(p.x, p.y); }
     else { const p = snap(raw, c); drag.b = pt(p.x, p.y); drag.raw = raw; }
     drawPreview(c);
   }
 
   function onUp(e, c) {
-    if (!drag || drag.caseId !== c.id || drag.phase === 'side') return;
+    if (!drag || drag.caseId !== c.id || drag.phase === 'side' || drag.tool === 'line') return;
     const d = drag;
     let sh = null;
     if (d.tool === 'free') {
       const pts = processFree(d.pts, c);
       if (pts.length >= 2) sh = { t: 'free', g: ui.gait, m: ui.move, p: pts };
-    } else if (d.tool === 'line') {
-      if (dist(d.a, d.b) > 0.3) sh = { t: 'line', g: ui.gait, m: ui.move, p: [d.a, d.b] };
     } else if (d.tool === 'circle') {
       sh = { t: 'circle', g: ui.gait, m: ui.move, c: circleCenter(d.a, d.raw, ui.diam / 2, c), r: ui.diam / 2 };
     } else if (d.tool === 'arc') {
@@ -728,7 +789,7 @@
     $('.toolbar').addEventListener('click', e => {
       const b = e.target.closest('button');
       if (!b) return;
-      if (b.dataset.tool) { cancelDrag(); ui.tool = b.dataset.tool; }
+      if (b.dataset.tool) { if (drag && drag.tool === 'line') finishLine(); else cancelDrag(); ui.tool = b.dataset.tool; }
       if (b.dataset.gait) ui.gait = b.dataset.gait;
       if (b.dataset.move) {
         ui.move = b.dataset.move;
@@ -817,6 +878,7 @@
     document.addEventListener('keydown', e => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
       if (e.key === 'Escape') cancelDrag();
+      if (e.key === 'Enter' && drag && drag.tool === 'line') { e.preventDefault(); finishLine(); }
       if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         const c = state.cases.find(x => x.id === lastCaseId);
         if (c) { e.preventDefault(); undo(c); }
