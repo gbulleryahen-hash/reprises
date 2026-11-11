@@ -572,7 +572,7 @@
     }
     // Déplacements latéraux : le symbole est répété le long du parcours,
     // orienté selon le sens de la marche et le côté intérieur.
-    const step = 58;
+    const step = 72;
     const n = Math.max(1, Math.round(len / step));
     const ds = Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
     // côté « intérieur » : centre du cercle, sinon centre de la carrière
@@ -595,7 +595,7 @@
       } else {
         tr += `rotate(${r2(p.ang)}) scale(1,${side})`;
       }
-      return `<g transform="${tr} scale(1.25)">${moveGlyph(move, col)}</g>`;
+      return `<g transform="${tr} scale(1.65)">${moveGlyph(move, col)}</g>`;
     }).join('');
   }
 
