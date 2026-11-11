@@ -268,7 +268,31 @@ body.tool-eraser .shape:hover { opacity: .35; }
   #print-root { display: block; }
 }
 
-/* Petits écrans : la barre d'outils (désormais haute) ne reste pas collée en haut */
-@media (max-height: 900px), (max-width: 700px) {
-  .toolbar { position: static; }
+/* ---------- Panneau d'outils à gauche ---------- */
+.layout { display: flex; align-items: flex-start; }
+.toolbar {
+  position: sticky; top: 0;
+  width: 280px; flex: none;
+  height: 100vh; overflow-y: auto;
+  flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+  gap: 14px; padding: 14px 14px 24px;
+  border-bottom: none; border-right: 1px solid var(--line);
+  box-shadow: 2px 0 6px rgba(0,0,0,.03);
 }
+.toolbar .seg { gap: 4px; }
+.toolbar .seg button { font-size: 13px; padding: 5px 8px; }
+#tools, #gaits { display: grid; grid-template-columns: 1fr 1fr; }
+#moves, #symbols { display: flex; flex-direction: column; }
+#moves button, #symbols button { justify-content: flex-start; width: 100%; }
+.toolbar .hint { flex-basis: auto; font-size: 12px; line-height: 1.35; margin: -6px 0 0; }
+.toolbar .current { align-self: flex-start; }
+.toolbar .toggle { padding: 0; }
+.layout main { flex: 1; min-width: 0; margin: 0; }
+
+/* Petits écrans : le panneau passe au-dessus */
+@media (max-width: 760px) {
+  .layout { display: block; }
+  .toolbar { position: static; width: auto; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+}
+.toolbar .seg button { justify-content: flex-start; text-align: left; line-height: 1.2; }
+#gaits button { min-height: 32px; }

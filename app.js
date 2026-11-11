@@ -963,7 +963,7 @@
       cur.style.borderColor = gg.color;
     }
     document.querySelectorAll('[data-diam]').forEach(b => b.classList.toggle('active', +b.dataset.diam === ui.diam));
-    $('#diam-group').style.visibility = (ui.tool === 'circle' || ui.tool === 'arc') ? 'visible' : 'hidden';
+    $('#diam-group').style.display = (ui.tool === 'circle' || ui.tool === 'arc') ? '' : 'none';
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
     $('#hint').textContent = t ? t.hint

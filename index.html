@@ -19,37 +19,39 @@
     </div>
   </header>
 
-  <section class="toolbar no-print">
-    <div class="group">
-      <span class="label">Outil</span>
-      <div id="tools" class="seg"></div>
-    </div>
-    <div class="group" id="diam-group">
-      <span class="label">Diamètre</span>
-      <div id="diams" class="seg"></div>
-    </div>
-    <div class="group">
-      <span class="label">Déplacement</span>
-      <div id="moves" class="seg"></div>
-    </div>
-    <div class="group">
-      <span class="label">Figures</span>
-      <div id="symbols" class="seg"></div>
-    </div>
-    <div class="group">
-      <span class="label">Allure</span>
-      <div id="gaits" class="seg"></div>
-    </div>
-    <label class="toggle"><input type="checkbox" id="snap" checked> Accrocher aux lettres</label>
-    <div id="current" class="current" title="Allure et déplacement en cours"></div>
-    <p id="hint" class="hint"></p>
-  </section>
+  <div class="layout">
+    <aside class="toolbar no-print" aria-label="Outils">
+      <div id="current" class="current" title="Allure et déplacement en cours"></div>
+      <p id="hint" class="hint"></p>
+      <div class="group">
+        <span class="label">Outil</span>
+        <div id="tools" class="seg"></div>
+      </div>
+      <div class="group" id="diam-group">
+        <span class="label">Diamètre</span>
+        <div id="diams" class="seg"></div>
+      </div>
+      <div class="group">
+        <span class="label">Allure</span>
+        <div id="gaits" class="seg"></div>
+      </div>
+      <div class="group">
+        <span class="label">Déplacement</span>
+        <div id="moves" class="seg"></div>
+      </div>
+      <div class="group">
+        <span class="label">Figures</span>
+        <div id="symbols" class="seg"></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="snap" checked> Accrocher aux lettres</label>
+    </aside>
 
-  <main>
-    <input id="title" class="title" placeholder="Titre de la reprise" autocomplete="off">
-    <div id="legend" class="legend print-only"></div>
-    <div id="cases" class="cases"></div>
-  </main>
+    <main>
+      <input id="title" class="title" placeholder="Titre de la reprise" autocomplete="off">
+      <div id="legend" class="legend print-only"></div>
+      <div id="cases" class="cases"></div>
+    </main>
+  </div>
 
   <!-- Flèches de direction (une par allure) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="markers"></defs></svg>
