@@ -366,8 +366,26 @@
   }
 
   // ---------------------------------------------------------------- État
-  const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, text: '', note: '', shapes: [] });
+  const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, textL: '', textR: '', note: '', shapes: [] });
   const newReprise = () => ({ version: 1, title: '', cases: [newCase()] });
+
+  // Mouvements sur deux colonnes : lettres (textL) | consignes (textR), ligne par ligne.
+  // Les anciens fichiers (un seul champ « text ») sont découpés automatiquement.
+  function splitText(c) {
+    if (typeof c.textL === 'string' || typeof c.textR === 'string') {
+      return { textL: String(c.textL || ''), textR: String(c.textR || '') };
+    }
+    const L = [], R = [];
+    for (const line of String(c.text || '').split('\n')) {
+      const m = line.trim().match(/^([A-Z]{1,6})(?:\s+|$)(.*)$/);
+      L.push(m ? m[1] : ''); R.push(m ? m[2] : line.trim());
+    }
+    while (L.length && !L[L.length - 1] && !R[R.length - 1]) { L.pop(); R.pop(); }
+    return { textL: L.join('\n'), textR: R.join('\n') };
+  }
+  // largeur de la colonne des lettres, en % (séparateur mobile)
+  const clampSplit = v => (typeof v === 'number' && v >= 8 && v <= 60 ? v : 18);
+  const applySplit = () => document.documentElement.style.setProperty('--split', clampSplit(state.split) + '%');
 
   function normalize(data) {
     if (!data || !Array.isArray(data.cases)) throw new Error('Fichier de reprise invalide');
@@ -375,11 +393,12 @@
       version: 1,
       title: String(data.title || ''),
       page: data.page === 'portrait' ? 'portrait' : 'paysage',
+      split: clampSplit(data.split),
       cases: data.cases.map(c => ({
         id: uid(),
         size: [40, 60, 80].includes(c.size) ? c.size : 60,
         orient: ['v', 'v2', 'h', 'h2'].includes(c.orient) ? c.orient : 'v',
-        text: String(c.text || ''),
+        ...splitText(c),
         note: String(c.note || ''),
         shapes: Array.isArray(c.shapes) ? c.shapes : [],
       })),
@@ -842,12 +861,16 @@
           <circle class="snapind" r="8" style="display:none"/>
         </svg>
       </div>
-      <textarea class="ta-text" placeholder="Mouvements, un par ligne. Ex. :&#10;A  Entrée au trot de travail&#10;X  Arrêt, immobilité, salut"></textarea>
+      <div class="split">
+        <textarea class="ta-l" placeholder="Lettres&#10;A&#10;X" spellcheck="false"></textarea>
+        <div class="split-handle" title="Glisser pour ajuster la largeur des colonnes (double-clic : par défaut)"></div>
+        <textarea class="ta-r" placeholder="Mouvements, un par ligne&#10;Entrée au trot de travail&#10;Arrêt, immobilité, salut"></textarea>
+      </div>
       <textarea class="ta-note" placeholder="Commentaire / critères du juge (encadré jaune à l’impression)"></textarea>`;
 
     const svg = art.querySelector('svg');
     const r = {
-      el: art, svg,
+      el: art, svg, grow: () => {},
       base: svg.querySelector('.base'),
       shapes: svg.querySelector('.shapes'),
       preview: svg.querySelector('.preview'),
@@ -861,13 +884,44 @@
     selSize.onchange = () => { cancelDrag(); c.size = +selSize.value; save(); renderCase(c); };
     selOrient.onchange = () => { cancelDrag(); c.orient = selOrient.value; save(); renderCase(c); };
 
-    for (const [sel, key] of [['.ta-text', 'text'], ['.ta-note', 'note']]) {
-      const ta = art.querySelector(sel);
-      const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
-      ta.value = c[key] || '';
-      ta.oninput = () => { c[key] = ta.value; grow(); save(); };
-      requestAnimationFrame(grow);
-    }
+    // les deux colonnes ont toujours la même hauteur pour que les lignes restent en face
+    const taL = art.querySelector('.ta-l'), taR = art.querySelector('.ta-r');
+    const growPair = () => {
+      taL.style.height = taR.style.height = 'auto';
+      const h = Math.max(taL.scrollHeight, taR.scrollHeight) + 2;
+      taL.style.height = taR.style.height = h + 'px';
+    };
+    taL.value = c.textL || ''; taR.value = c.textR || '';
+    taL.oninput = () => { c.textL = taL.value; growPair(); save(); };
+    taR.oninput = () => { c.textR = taR.value; growPair(); save(); };
+    requestAnimationFrame(growPair);
+    r.grow = growPair;
+    const taN = art.querySelector('.ta-note');
+    const growN = () => { taN.style.height = 'auto'; taN.style.height = taN.scrollHeight + 2 + 'px'; };
+    taN.value = c.note || '';
+    taN.oninput = () => { c.note = taN.value; growN(); save(); };
+    requestAnimationFrame(growN);
+
+    // séparateur mobile (commun à toutes les cases)
+    const handle = art.querySelector('.split-handle'), box = art.querySelector('.split');
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      const move = ev => {
+        const r = box.getBoundingClientRect();
+        state.split = Math.round(Math.min(60, Math.max(8, (ev.clientX - r.left) / r.width * 100)));
+        applySplit();
+      };
+      const up = () => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+        save();
+        state.cases.forEach(x => { const rr = refs.get(x.id); if (rr) rr.grow(); });
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+    });
+    handle.addEventListener('dblclick', () => { state.split = 18; applySplit(); save(); });
 
     art.querySelector('.controls').onclick = ev => {
       const b = ev.target.closest('button');
@@ -885,7 +939,7 @@
           if (i < state.cases.length - 1) { state.cases.splice(i, 1); state.cases.splice(i + 1, 0, c); save(); renderAll(); }
           break;
         case 'del':
-          if ((c.shapes.length || c.text) && !confirm('Supprimer cette case ?')) return;
+          if ((c.shapes.length || c.textL || c.textR || c.note) && !confirm('Supprimer cette case ?')) return;
           state.cases.splice(i, 1);
           if (!state.cases.length) state.cases.push(newCase(c.size, c.orient));
           save(); renderAll();
@@ -922,6 +976,7 @@
     };
     wrap.appendChild(add);
     $('#title').value = state.title;
+    applySplit();
     $('#page-orient').value = state.page === 'portrait' ? 'portrait' : 'paysage';
   }
 
@@ -995,13 +1050,16 @@
   // paysage : 4 × 3 = 12 cases ; portrait : 4 × 4 = 16 cases
   const perPage = () => (state.page === 'portrait' ? 16 : 12);
 
-  function descHtml(text) {
-    return text.split('\n').filter(l => l.trim()).map(l => {
-      const m = l.trim().match(/^([A-Z]{1,6})(?:\s+|$)(.*)$/);
-      return m
-        ? `<div class="pl"><span class="pk">${esc(m[1])}</span><span>${esc(m[2])}</span></div>`
-        : `<div class="pl"><span class="pk"></span><span>${esc(l.trim())}</span></div>`;
-    }).join('');
+  function descHtml(c) {
+    const L = (c.textL || '').split('\n'), R = (c.textR || '').split('\n');
+    const n = Math.max(L.length, R.length);
+    let out = '';
+    for (let i = 0; i < n; i++) {
+      const l = (L[i] || '').trim(), t = (R[i] || '').trim();
+      if (!l && !t) continue;
+      out += `<div class="pl"><span class="pk">${esc(l)}</span><span>${esc(t)}</span></div>`;
+    }
+    return out;
   }
 
   function legendCell() {
@@ -1055,7 +1113,7 @@
       const svg = standaloneSvg(r.svg);
       return `<div class="pcell">
         <div class="ptop"><div class="pnum">${i + 1}</div><div class="psvg">${svg.outerHTML}</div></div>
-        <div class="pdesc">${descHtml(c.text || '')}</div>
+        <div class="pdesc">${descHtml(c)}</div>
         ${c.note && c.note.trim() ? `<div class="pnote">${esc(c.note.trim()).replace(/\n/g, '<br>')}</div>` : ''}
       </div>`;
     });

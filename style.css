@@ -235,7 +235,7 @@ body.tool-eraser .shape:hover { opacity: .35; }
 .psvg .centerline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .9; }
 .pempty { border-color: transparent; }
 .pdesc { font-size: 7.5pt; line-height: 1.2; }
-.pl { display: grid; grid-template-columns: 9mm 1fr; }
+.pl { display: grid; grid-template-columns: var(--split, 18%) 1fr; column-gap: 1mm; }
 .pk { font-weight: 400; }
 .pnote {
   background: #f2c34a; padding: 1.2mm 1.8mm;
@@ -316,3 +316,19 @@ body.tool-eraser .shape:hover { opacity: .35; }
   border: 1px solid #5a4c42; border-radius: 8px; padding: 5px 6px;
 }
 #page-orient option { color: #000; }
+
+/* Mouvements : deux colonnes (lettres | consignes) et séparateur mobile */
+:root { --split: 18%; }
+.split { display: grid; grid-template-columns: var(--split) 10px 1fr; align-items: stretch; }
+.split textarea { min-height: 64px; line-height: 1.4; resize: none; overflow: hidden; }
+.split .ta-l { border-radius: 8px 0 0 8px; font-weight: 600; white-space: pre; overflow-x: auto; }
+.split .ta-r { border-radius: 0 8px 8px 0; }
+.split-handle {
+  cursor: col-resize; touch-action: none; position: relative;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #faf7f2;
+}
+.split-handle::after {
+  content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 2px;
+  border-radius: 2px; background: #c9bcae;
+}
+.split-handle:hover::after, .split-handle:active::after { background: var(--ink); }
