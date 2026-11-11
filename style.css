@@ -72,7 +72,18 @@ button:hover { border-color: #b9ab9c; }
 }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .seg button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
-.seg button.active svg * { stroke: #fff; }
+.seg button.active svg { background: #fff; border-radius: 50%; }
+/* Allure sélectionnée : bouton rempli de sa couleur, bien visible */
+.seg button[data-gait].active {
+  background: var(--c); border-color: var(--c); color: #fff; font-weight: 700;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c);
+}
+.seg button[data-gait].active .swatch { box-shadow: inset 0 0 0 2px #fff; }
+.current {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; padding: 5px 12px; margin-bottom: 2px;
+  border: 2px solid var(--line); border-radius: 999px; background: #fff;
+}
 .swatch {
   width: 14px; height: 14px; border-radius: 50%;
   display: inline-block; flex: none;

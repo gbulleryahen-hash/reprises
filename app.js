@@ -35,12 +35,19 @@
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
+  // Symboles ponctuels (on clique pour les poser)
   const SYMBOLS = [
-    { id: 'halt',     label: 'Arrêt' },
-    { id: 'cession',  label: 'Cession à la jambe' },
+    { id: 'halt', label: 'Arrêt' },
+  ];
+
+  // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
+  const MOVES = [
+    { id: 'droit',    label: 'Droit' },
     { id: 'shoulder', label: 'Épaule en dedans' },
+    { id: 'cession',  label: 'Cession à la jambe' },
     { id: 'appuyer',  label: 'Appuyer' },
   ];
+  const MOVE_IDS = MOVES.map(m => m.id);
 
   const DIAMS = [6, 10, 12, 15, 20];
 
@@ -205,6 +212,8 @@
   // ---------------------------------------------------------------- Symboles
   function glyph(kind, color) {
     switch (kind) {
+      case 'droit':
+        return `<path d="M-9 0H7M1 -6L8 0L1 6" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
       case 'halt': {
         const pts = Array.from({ length: 8 }, (_, k) => {
           const a = Math.PI / 8 + k * Math.PI / 4;
@@ -256,7 +265,18 @@
 
   let state = load() || newReprise();
   if (!state.cases.length) state.cases.push(newCase());
-  const ui = { tool: 'free', gait: 'trot', diam: 10, snap: true };
+  // Réglages de la barre d'outils : ils restent enclenchés (et sont mémorisés)
+  const UI_KEY = 'reprises.outils';
+  const ui = { tool: 'free', gait: 'trot', move: 'droit', diam: 10, snap: true };
+  try {
+    const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
+    if (saved.tool && (TOOLS.some(t => t.id === saved.tool) || saved.tool === 'sym:halt')) ui.tool = saved.tool;
+    if (GAIT[saved.gait]) ui.gait = saved.gait;
+    if (MOVE_IDS.includes(saved.move)) ui.move = saved.move;
+    if (DIAMS.includes(saved.diam)) ui.diam = saved.diam;
+    if (typeof saved.snap === 'boolean') ui.snap = saved.snap;
+  } catch { /* rien */ }
+  const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* rien */ } };
   const history = new Map();   // id de case -> piles d'états précédents
   const refs = new Map();      // id de case -> éléments DOM
   let drag = null;
@@ -309,7 +329,101 @@
     return s;
   }
 
+  // Points (écran) le long du tracé, pour y poser les flèches / symboles
+  function screenPolyline(sh, g) {
+    switch (sh.t) {
+      case 'line': return sh.p.map(g.to);
+      case 'arc': return arcPoints(sh.a, sh.b, sh.r, sh.side).map(g.to);
+      case 'circle': {
+        const q = g.to(sh.c), R = sh.r * S;
+        return Array.from({ length: 73 }, (_, k) => {
+          const t = k / 72 * Math.PI * 2;
+          return { x: q.x + R * Math.cos(t), y: q.y + R * Math.sin(t) };
+        });
+      }
+      case 'free': {
+        const q = sh.p.map(g.to);
+        if (q.length < 3) return q;
+        const out = [q[0]];
+        for (let i = 0; i < q.length - 1; i++) {
+          const p0 = q[i - 1] || q[i], p1 = q[i], p2 = q[i + 1], p3 = q[i + 2] || p2;
+          const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+          const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+          for (let k = 1; k <= 12; k++) {
+            const t = k / 12, u = 1 - t;
+            out.push({
+              x: u * u * u * p1.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p2.x,
+              y: u * u * u * p1.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p2.y,
+            });
+          }
+        }
+        return out;
+      }
+    }
+    return [];
+  }
+
+  // Position et angle (degrés) aux distances demandées le long d'une polyligne
+  function pointsAlong(poly, dists) {
+    const res = [];
+    let acc = 0, k = 0;
+    for (let i = 0; i < poly.length - 1 && k < dists.length; i++) {
+      const a = poly[i], b = poly[i + 1];
+      const seg = Math.hypot(b.x - a.x, b.y - a.y);
+      while (k < dists.length && dists[k] <= acc + seg) {
+        const t = seg ? (dists[k] - acc) / seg : 0;
+        res.push({
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          ang: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI,
+        });
+        k++;
+      }
+      acc += seg;
+    }
+    return res;
+  }
+
+  function polyLength(poly) {
+    let L = 0;
+    for (let i = 0; i < poly.length - 1; i++) L += Math.hypot(poly[i + 1].x - poly[i].x, poly[i + 1].y - poly[i].y);
+    return L;
+  }
+
+  // Décorations automatiques selon le type de déplacement
+  function decorations(sh, g, col) {
+    const move = MOVE_IDS.includes(sh.m) ? sh.m : 'droit';
+    const poly = screenPolyline(sh, g);
+    const len = polyLength(poly);
+    if (len < 15) return '';
+    const closed = sh.t === 'circle';
+    if (move === 'droit') {
+      if (closed) return '';                       // un cercle n'a pas de sens défini
+      const usable = len - 25;                     // la flèche de fin existe déjà
+      const n = Math.max(1, Math.round(usable / 60));
+      const ds = Array.from({ length: n }, (_, i) => (i + 0.5) * usable / n);
+      return pointsAlong(poly, ds).map(p =>
+        `<path transform="translate(${r2(p.x)},${r2(p.y)}) rotate(${r2(p.ang)})" d="M-5,-5.5L3,0L-5,5.5" ` +
+        `fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
+      ).join('');
+    }
+    // Épaule en dedans, cession, appuyer : le symbole est répété sur le parcours
+    const n = Math.max(1, Math.round(len / (closed ? 110 : 100)));
+    const ds = Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
+    return pointsAlong(poly, ds).map(p =>
+      `<g transform="translate(${r2(p.x)},${r2(p.y)}) scale(.85)">${glyph(move, col)}</g>`
+    ).join('');
+  }
+
   function shapeSvg(sh, g, i) {
+    const vis = shapeVisual(sh, g, i);
+    if (!vis || sh.t === 'sym') return vis;
+    const col = (GAIT[sh.g] || GAIT.trot).color;
+    // les décorations s'insèrent juste avant la zone de clic (fin du groupe)
+    return vis.replace(/<\/g>$/, `<g class="deco">${decorations(sh, g, col)}</g></g>`);
+  }
+
+  function shapeVisual(sh, g, i) {
     const col = (GAIT[sh.g] || GAIT.trot).color;
     const arrow = `marker-end="url(#arr-${GAIT[sh.g] ? sh.g : 'trot'})"`;
     const stroke = `fill="none" stroke="${col}" stroke-width="${STROKE}" stroke-linecap="round" stroke-linejoin="round"`;
@@ -437,7 +551,7 @@
       return;
     }
     if (tool === 'arc' && drag && drag.phase === 'side') {
-      const sh = { t: 'arc', g: ui.gait, a: drag.a, b: drag.b, r: ui.diam / 2, side: arcSide(drag.a, drag.b, raw) };
+      const sh = { t: 'arc', g: ui.gait, m: ui.move, a: drag.a, b: drag.b, r: ui.diam / 2, side: arcSide(drag.a, drag.b, raw) };
       drag = null;
       drawPreview(c);
       mutate(c, () => c.shapes.push(sh));
@@ -469,11 +583,11 @@
     let sh = null;
     if (d.tool === 'free') {
       const pts = processFree(d.pts, c);
-      if (pts.length >= 2) sh = { t: 'free', g: ui.gait, p: pts };
+      if (pts.length >= 2) sh = { t: 'free', g: ui.gait, m: ui.move, p: pts };
     } else if (d.tool === 'line') {
-      if (dist(d.a, d.b) > 0.3) sh = { t: 'line', g: ui.gait, p: [d.a, d.b] };
+      if (dist(d.a, d.b) > 0.3) sh = { t: 'line', g: ui.gait, m: ui.move, p: [d.a, d.b] };
     } else if (d.tool === 'circle') {
-      sh = { t: 'circle', g: ui.gait, c: circleCenter(d.a, d.raw, ui.diam / 2, c), r: ui.diam / 2 };
+      sh = { t: 'circle', g: ui.gait, m: ui.move, c: circleCenter(d.a, d.raw, ui.diam / 2, c), r: ui.diam / 2 };
     } else if (d.tool === 'arc') {
       if (dist(d.a, d.b) > 0.3) {
         // 2e temps : choisir le côté de l'arc puis cliquer
@@ -603,8 +717,11 @@
     $('#symbols').innerHTML = SYMBOLS.map(s =>
       `<button data-tool="sym:${s.id}" title="${s.label}"><svg viewBox="-13 -13 26 26" width="20" height="20">${glyph(s.id, '#333')}</svg>${s.label}</button>`
     ).join('');
+    $('#moves').innerHTML = MOVES.map(m =>
+      `<button data-move="${m.id}" title="${m.label}"><svg viewBox="-13 -13 26 26" width="20" height="20">${glyph(m.id, '#333')}</svg>${m.label}</button>`
+    ).join('');
     $('#gaits').innerHTML = GAITS.map(g =>
-      `<button data-gait="${g.id}"><span class="swatch" style="background:${g.color}"></span>${g.label}</button>`
+      `<button data-gait="${g.id}" style="--c:${g.color}"><span class="swatch" style="background:${g.color}"></span>${g.label}</button>`
     ).join('');
     $('#diams').innerHTML = DIAMS.map(d => `<button data-diam="${d}">${d} m</button>`).join('');
 
@@ -613,10 +730,17 @@
       if (!b) return;
       if (b.dataset.tool) { cancelDrag(); ui.tool = b.dataset.tool; }
       if (b.dataset.gait) ui.gait = b.dataset.gait;
+      if (b.dataset.move) {
+        ui.move = b.dataset.move;
+        // choisir un déplacement réactive un outil de tracé si besoin
+        if (ui.tool === 'eraser' || ui.tool.startsWith('sym:')) ui.tool = 'free';
+      }
       if (b.dataset.diam) ui.diam = +b.dataset.diam;
+      saveUi();
       refreshToolbar();
     });
-    $('#snap').onchange = e => { ui.snap = e.target.checked; };
+    $('#snap').checked = ui.snap;
+    $('#snap').onchange = e => { ui.snap = e.target.checked; saveUi(); };
 
     // flèches de direction
     $('#markers').innerHTML = GAITS.map(g =>
@@ -627,7 +751,7 @@
     // légende imprimée
     $('#legend').innerHTML =
       GAITS.map(g => `<span><span class="swatch" style="background:${g.color}"></span>${esc(g.label)}</span>`).join('') +
-      SYMBOLS.map(s => `<span><svg viewBox="-13 -13 26 26" width="14" height="14">${glyph(s.id, '#333')}</svg>${esc(s.label)}</span>`).join('');
+      MOVES.concat(SYMBOLS).map(s => `<span><svg viewBox="-13 -13 26 26" width="14" height="14">${glyph(s.id, '#333')}</svg>${esc(s.label)}</span>`).join('');
 
     refreshToolbar();
   }
@@ -635,6 +759,13 @@
   function refreshToolbar() {
     document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === ui.tool));
     document.querySelectorAll('[data-gait]').forEach(b => b.classList.toggle('active', b.dataset.gait === ui.gait));
+    document.querySelectorAll('[data-move]').forEach(b => b.classList.toggle('active', b.dataset.move === ui.move));
+    const cur = $('#current');
+    if (cur) {
+      const gg = GAIT[ui.gait], mm = MOVES.find(m => m.id === ui.move);
+      cur.innerHTML = `<span class="swatch" style="background:${gg.color}"></span><b>${esc(gg.label)}</b> · ${esc(mm.label)}`;
+      cur.style.borderColor = gg.color;
+    }
     document.querySelectorAll('[data-diam]').forEach(b => b.classList.toggle('active', +b.dataset.diam === ui.diam));
     $('#diam-group').style.visibility = (ui.tool === 'circle' || ui.tool === 'arc') ? 'visible' : 'hidden';
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
