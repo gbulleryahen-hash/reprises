@@ -350,7 +350,7 @@
   }
 
   // ---------------------------------------------------------------- État
-  const newCase = (size = 60, orient = 'v') => ({ id: uid(), size, orient, text: '', shapes: [] });
+  const newCase = (size = 60, orient = 'v') => ({ id: uid(), size, orient, text: '', note: '', shapes: [] });
   const newReprise = () => ({ version: 1, title: '', cases: [newCase()] });
 
   function normalize(data) {
@@ -363,6 +363,7 @@
         size: c.size === 40 ? 40 : 60,
         orient: c.orient === 'h' ? 'h' : 'v',
         text: String(c.text || ''),
+        note: String(c.note || ''),
         shapes: Array.isArray(c.shapes) ? c.shapes : [],
       })),
     };
@@ -823,8 +824,8 @@
           <circle class="snapind" r="8" style="display:none"/>
         </svg>
       </div>
-      <textarea placeholder="Remarques, consignes, notes…"></textarea>
-      <div class="print-text print-only"></div>`;
+      <textarea class="ta-text" placeholder="Mouvements, un par ligne. Ex. :&#10;A  Entrée au trot de travail&#10;X  Arrêt, immobilité, salut"></textarea>
+      <textarea class="ta-note" placeholder="Commentaire / critères du juge (encadré jaune à l’impression)"></textarea>`;
 
     const svg = art.querySelector('svg');
     const r = {
@@ -842,13 +843,13 @@
     selSize.onchange = () => { cancelDrag(); c.size = +selSize.value; save(); renderCase(c); };
     selOrient.onchange = () => { cancelDrag(); c.orient = selOrient.value; save(); renderCase(c); };
 
-    const ta = art.querySelector('textarea');
-    const pt_ = art.querySelector('.print-text');
-    const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
-    ta.value = c.text;
-    pt_.textContent = c.text;
-    ta.oninput = () => { c.text = ta.value; pt_.textContent = c.text; grow(); save(); };
-    requestAnimationFrame(grow);
+    for (const [sel, key] of [['.ta-text', 'text'], ['.ta-note', 'note']]) {
+      const ta = art.querySelector(sel);
+      const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
+      ta.value = c[key] || '';
+      ta.oninput = () => { c[key] = ta.value; grow(); save(); };
+      requestAnimationFrame(grow);
+    }
 
     art.querySelector('.controls').onclick = ev => {
       const b = ev.target.closest('button');
@@ -969,6 +970,69 @@
       : 'Cliquez pour poser la figure (elle s’accroche aux lettres), ou cliquez-glissez dans la direction du cheval pour l’orienter.';
   }
 
+  // ---------------------------------------------------------------- Impression
+  // Mise en page « fiche de reprise » : A4 paysage, 4 colonnes × 3 rangées par page,
+  // case numérotée, carrière, mouvements (lettres | consigne), encadré jaune.
+  const PER_PAGE = 12;
+
+  function descHtml(text) {
+    return text.split('\n').filter(l => l.trim()).map(l => {
+      const m = l.trim().match(/^([A-Z]{1,6})(?:\s+|$)(.*)$/);
+      return m
+        ? `<div class="pl"><span class="pk">${esc(m[1])}</span><span>${esc(m[2])}</span></div>`
+        : `<div class="pl"><span class="pk"></span><span>${esc(l.trim())}</span></div>`;
+    }).join('');
+  }
+
+  function legendCell() {
+    // allures, déplacements et figures réellement utilisés dans la reprise
+    const used = { g: new Set(), m: new Set(), k: new Set() };
+    for (const c of state.cases) for (const sh of c.shapes) {
+      if (sh.g) used.g.add(sh.g);
+      if (sh.t === 'sym') used.k.add(sh.k);
+      else if (sh.m && sh.m !== 'droit') used.m.add(sh.m);
+    }
+    const gaits = GAITS.filter(g => used.g.has(g.id));
+    const rows = (gaits.length ? gaits : GAITS).map(g =>
+      `<div class="lg"><span class="lsq" style="background:${g.color}"></span>${esc(g.label)}</div>`).join('') +
+      MOVES.filter(m => used.m.has(m.id)).map(m =>
+        `<div class="lg"><svg viewBox="-13 -13 26 26" class="lic">${moveGlyph(m.id, '#333')}</svg>${esc(m.label)}</div>`).join('') +
+      SYMBOLS.filter(f => used.k.has(f.id)).map(f =>
+        `<div class="lg"><svg viewBox="-16 -16 32 32" class="lic"><g transform="rotate(${UNROTATED.includes(f.id) ? 0 : -90})">${glyph(f.id, '#333')}</g></svg>${esc(f.label)}</div>`).join('');
+    return `<div class="pcell plegend"><div class="ptitle-lg">Code couleur</div><div class="lgrid">${rows}</div></div>`;
+  }
+
+  function buildPrint() {
+    let root = $('#print-root');
+    if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+    const sizes = [...new Set(state.cases.map(c => c.size))];
+    const sizeTxt = sizes.length === 1 ? `20 x ${sizes[0]}` : '';
+    const cells = state.cases.map((c, i) => {
+      const r = refs.get(c.id);
+      const svg = r.svg.cloneNode(true);
+      svg.querySelector('.preview')?.remove();
+      svg.querySelector('.snapind')?.remove();
+      svg.removeAttribute('style');
+      return `<div class="pcell">
+        <div class="ptop"><div class="pnum">${i + 1}</div><div class="psvg">${svg.outerHTML}</div></div>
+        <div class="pdesc">${descHtml(c.text || '')}</div>
+        ${c.note && c.note.trim() ? `<div class="pnote">${esc(c.note.trim()).replace(/\n/g, '<br>')}</div>` : ''}
+      </div>`;
+    });
+    cells.push(legendCell());
+    const pages = [];
+    for (let i = 0; i < cells.length; i += PER_PAGE) pages.push(cells.slice(i, i + PER_PAGE));
+    const title = esc(state.title || 'Reprise');
+    root.innerHTML = pages.map((pc, n) => `
+      <section class="ppage">
+        <header class="phead">
+          <span class="ptitle">${title}</span><span class="psize">${sizeTxt}</span>
+          <span class="ppnum">Page ${n + 1}${pages.length > 1 ? ' / ' + pages.length : ''}</span>
+        </header>
+        <div class="pgrid">${pc.join('')}${'<div class="pcell pempty"></div>'.repeat(PER_PAGE - pc.length)}</div>
+      </section>`).join('');
+  }
+
   // ---------------------------------------------------------------- Fichiers
   function fileName() {
     const base = (state.title || 'reprise').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -993,7 +1057,8 @@
       state = newReprise(); history.clear(); save(); renderAll();
     };
     $('#btn-save').onclick = download;
-    $('#btn-print').onclick = () => window.print();
+    $('#btn-print').onclick = () => { buildPrint(); window.print(); };
+    window.addEventListener('beforeprint', buildPrint);   // aussi pour Ctrl+P
     $('#btn-open').onclick = () => $('#file-input').click();
     $('#file-input').onchange = async e => {
       const f = e.target.files[0];
