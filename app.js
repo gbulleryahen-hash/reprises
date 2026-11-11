@@ -44,7 +44,8 @@
     { id: 'dt_epaules',  label: 'Demi-tour sur les épaules' },
     { id: 'qt_hanches',  label: 'Quart de tour sur les hanches' },
     { id: 'qt_epaules',  label: 'Quart de tour sur les épaules' },
-    { id: 'pirouette',   label: 'Pirouette' },
+    { id: 'pirouette_g', label: 'Pirouette à gauche' },
+    { id: 'pirouette_d', label: 'Pirouette à droite' },
     { id: 'simple',      label: 'Changement de pied simple' },
     { id: 'cone',        label: 'Cône' },
     { id: 'barre',       label: 'Barre au sol' },
@@ -332,7 +333,12 @@
         return ln('M0,0H8', color) + dot(9, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 0, 90, color);
       case 'qt_epaules':
         return ln('M0,0H-9', color) + dot(2.5, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 180, 270, color);
-      case 'pirouette':
+      // repère écran vu de dessus : cheval tourné vers +x, sa gauche est vers -y
+      case 'pirouette_g':
+        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, 25, -285, color);
+      case 'pirouette_d':
+        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -25, 285, color);
+      case 'pirouette':   // ancien symbole (fichiers déjà enregistrés)
         return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true);
       case 'simple':   // couleur fixe (cyan), comme sur les fiches
         return `<circle r="8" fill="#26c6da" stroke="#fff" stroke-width="1.5"/>`;
