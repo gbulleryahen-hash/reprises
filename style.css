@@ -1,0 +1,198 @@
+:root {
+  --bg: #f6f3ee;
+  --panel: #ffffff;
+  --ink: #2b2420;
+  --muted: #7a6f66;
+  --line: #e2dad0;
+  --sand: #f7e1b5;
+  --sand-edge: #3a2e25;
+  --danger: #b3261e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+button {
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+button:hover { border-color: #b9ab9c; }
+
+/* ---------- Barre du haut ---------- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 20px;
+  background: var(--ink);
+  color: #fff;
+}
+.brand { font-weight: 700; letter-spacing: .02em; }
+.file-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.topbar button { background: transparent; color: #fff; border-color: #5a4c42; }
+.topbar button:hover { background: #3d332c; }
+
+/* ---------- Barre d'outils ---------- */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  align-items: flex-end;
+  padding: 10px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 6px rgba(0,0,0,.04);
+}
+.group { display: flex; flex-direction: column; gap: 4px; }
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.seg button.active svg * { stroke: #fff; }
+.swatch {
+  width: 14px; height: 14px; border-radius: 50%;
+  display: inline-block; flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+}
+.toggle { font-size: 14px; display: flex; align-items: center; gap: 6px; padding-bottom: 6px; }
+.hint { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--muted); }
+
+/* ---------- Contenu ---------- */
+main { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+.title {
+  font: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  border: none;
+  border-bottom: 1px dashed var(--line);
+  background: transparent;
+  width: 100%;
+  padding: 6px 0;
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+.title:focus { outline: none; border-bottom-color: var(--ink); }
+
+.cases {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.case {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.case-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.num { font-weight: 700; margin-right: auto; }
+.controls { display: flex; gap: 4px; flex-wrap: wrap; }
+.controls select {
+  font: inherit; font-size: 13px;
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 5px 6px; background: #fff;
+}
+.icon { padding: 4px 8px; }
+.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+/* Taille de vignette FIXE : elle ne change pas avec la carrière */
+.drawing {
+  height: 460px;
+  border-radius: 8px;
+  background: #fbfaf7;
+}
+.drawing svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+body.tool-eraser .drawing svg { cursor: not-allowed; }
+
+textarea {
+  font: inherit; font-size: 14px;
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.add-case {
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  background: transparent;
+  min-height: 220px;
+  font-size: 44px;
+  color: var(--muted);
+  justify-content: center;
+}
+.add-case:hover { border-color: var(--muted); color: var(--ink); }
+
+/* ---------- Dessin de la carrière ---------- */
+.arena { fill: var(--sand); stroke: var(--sand-edge); stroke-width: 2; }
+.centerline { stroke: #6b5a4c; stroke-width: 1; stroke-dasharray: 4 4; opacity: .6; }
+.tick { stroke: var(--sand-edge); stroke-width: 2; }
+.letter { font-size: 20px; font-weight: 700; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.cletter { font-size: 15px; font-weight: 700; fill: #6b5a4c; opacity: .5; text-anchor: middle; dominant-baseline: central; }
+.shape .hit { stroke: transparent; fill: none; stroke-width: 16; pointer-events: stroke; }
+.shape .hit-fill { fill: transparent; pointer-events: all; }
+.shape > * { pointer-events: none; }
+.shape .hit, .shape .hit-fill { pointer-events: auto; }
+body.tool-eraser .shape:hover { opacity: .35; }
+.preview * { pointer-events: none; }
+.snapind { fill: none; stroke: #000; stroke-width: 2; opacity: .5; pointer-events: none; }
+
+/* ---------- Légende (impression) ---------- */
+.legend { gap: 6px 16px; flex-wrap: wrap; font-size: 11px; margin-bottom: 4mm; }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+.print-only { display: none; }
+
+/* ---------- Impression A4 ---------- */
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  body { background: #fff; }
+  .no-print, .add-case, textarea { display: none !important; }
+  .print-only { display: block; }
+  .legend { display: flex; }
+  main { padding: 0; max-width: none; }
+  .title { border: none; font-size: 18pt; margin-bottom: 2mm; padding: 0; }
+  .cases { grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .case { break-inside: avoid; border-color: #bbb; border-radius: 0; padding: 3mm; gap: 2mm; }
+  .drawing { height: 105mm; background: #fff; }
+  .print-text { white-space: pre-wrap; font-size: 10pt; min-height: 8mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

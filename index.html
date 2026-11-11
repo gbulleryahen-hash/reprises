@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Éditeur de reprises de dressage</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar no-print">
+    <div class="brand">Reprises de dressage</div>
+    <div class="file-actions">
+      <button id="btn-new" title="Commencer une reprise vierge">Nouvelle</button>
+      <button id="btn-open" title="Ouvrir une reprise enregistrée sur l'ordinateur">Ouvrir…</button>
+      <button id="btn-save" title="Enregistrer la reprise sur l'ordinateur">Enregistrer</button>
+      <button id="btn-print" title="Imprimer sur feuilles A4">Imprimer</button>
+      <input type="file" id="file-input" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <section class="toolbar no-print">
+    <div class="group">
+      <span class="label">Outil</span>
+      <div id="tools" class="seg"></div>
+    </div>
+    <div class="group" id="diam-group">
+      <span class="label">Diamètre</span>
+      <div id="diams" class="seg"></div>
+    </div>
+    <div class="group">
+      <span class="label">Figures</span>
+      <div id="symbols" class="seg"></div>
+    </div>
+    <div class="group">
+      <span class="label">Allure</span>
+      <div id="gaits" class="seg"></div>
+    </div>
+    <label class="toggle"><input type="checkbox" id="snap" checked> Accrocher aux lettres</label>
+    <p id="hint" class="hint"></p>
+  </section>
+
+  <main>
+    <input id="title" class="title" placeholder="Titre de la reprise" autocomplete="off">
+    <div id="legend" class="legend print-only"></div>
+    <div id="cases" class="cases"></div>
+  </main>
+
+  <!-- Flèches de direction (une par allure) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="markers"></defs></svg>
+
+  <script src="app.js"></script>
+</body>
+</html>
