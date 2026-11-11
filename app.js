@@ -1002,6 +1002,29 @@
     return `<div class="pcell plegend"><div class="ptitle-lg">Code couleur</div><div class="lgrid">${rows}</div></div>`;
   }
 
+  // Copie autonome d'un dessin : styles écrits dans le SVG et flèches incluses,
+  // pour qu'il s'affiche pareil à l'impression et dans le PDF.
+  const PRINT_STYLES = {
+    arena: 'fill:#fff;stroke:#333;stroke-width:1.5',
+    centerline: 'stroke:#9bb3d1;stroke-width:1',
+    quarterline: 'stroke:#9bb3d1;stroke-width:1;opacity:.7',
+    tick: 'stroke:#333;stroke-width:2',
+    letter: 'font:700 20px "Times New Roman",Times,serif;fill:#111;text-anchor:middle;dominant-baseline:central',
+    cletter: 'font:700 15px "Times New Roman",Times,serif;fill:#6b5a4c;opacity:.5;text-anchor:middle;dominant-baseline:central',
+  };
+  function standaloneSvg(src) {
+    const svg = src.cloneNode(true);
+    svg.querySelectorAll('.preview, .snapind, .hit, .hit-fill').forEach(n => n.remove());
+    svg.removeAttribute('style');
+    for (const [cls, st] of Object.entries(PRINT_STYLES)) {
+      svg.querySelectorAll('.' + cls).forEach(n => n.setAttribute('style', st));
+    }
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = $('#markers').innerHTML;
+    svg.insertBefore(defs, svg.firstChild);
+    return svg;
+  }
+
   function buildPrint() {
     let root = $('#print-root');
     if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
@@ -1009,10 +1032,7 @@
     const sizeTxt = sizes.length === 1 ? `20 x ${sizes[0]}` : '';
     const cells = state.cases.map((c, i) => {
       const r = refs.get(c.id);
-      const svg = r.svg.cloneNode(true);
-      svg.querySelector('.preview')?.remove();
-      svg.querySelector('.snapind')?.remove();
-      svg.removeAttribute('style');
+      const svg = standaloneSvg(r.svg);
       return `<div class="pcell">
         <div class="ptop"><div class="pnum">${i + 1}</div><div class="psvg">${svg.outerHTML}</div></div>
         <div class="pdesc">${descHtml(c.text || '')}</div>
@@ -1031,6 +1051,56 @@
         </header>
         <div class="pgrid">${pc.join('')}${'<div class="pcell pempty"></div>'.repeat(PER_PAGE - pc.length)}</div>
       </section>`).join('');
+  }
+
+  // ---------------------------------------------------------------- Export PDF
+  // Les pages de la fiche sont photographiées (html2canvas) puis assemblées en PDF A4 paysage (jsPDF).
+  const PDF_LIBS = [
+    ['html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'],
+    ['jspdf', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'],
+  ];
+  function loadScript(src) {
+    return new Promise((ok, ko) => {
+      const sc = document.createElement('script');
+      sc.src = src; sc.onload = ok; sc.onerror = () => ko(new Error('chargement impossible : ' + src));
+      document.head.appendChild(sc);
+    });
+  }
+
+  async function exportPdf() {
+    const btn = $('#btn-pdf'), label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'PDF en cours…';
+    const overlay = document.createElement('div');
+    overlay.className = 'pdf-overlay';
+    overlay.textContent = 'Création du PDF…';
+    document.body.appendChild(overlay);
+    const root = () => $('#print-root');
+    try {
+      for (const [g, src] of PDF_LIBS) if (!window[g]) await loadScript(src);
+      buildPrint();
+      window.scrollTo(0, 0);
+      root().classList.add('exporting');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pages = [...root().querySelectorAll('.ppage')];
+      for (let i = 0; i < pages.length; i++) {
+        overlay.textContent = `Création du PDF… page ${i + 1} / ${pages.length}`;
+        const canvas = await window.html2canvas(pages[i], { scale: 2.5, backgroundColor: '#ffffff', logging: false });
+        if (i) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 7, 7, 283, 195);
+      }
+      pdf.save(fileName().replace(/\.reprise\.json$/, '.pdf'));
+    } catch (err) {
+      console.error(err);
+      alert('L’export PDF direct n’a pas fonctionné (une connexion internet est nécessaire).\n' +
+        'La fenêtre d’impression va s’ouvrir : choisissez « Enregistrer au format PDF » comme imprimante.');
+      buildPrint();
+      window.print();
+    } finally {
+      root()?.classList.remove('exporting');
+      overlay.remove();
+      btn.disabled = false; btn.textContent = label;
+    }
   }
 
   // ---------------------------------------------------------------- Fichiers
@@ -1058,6 +1128,7 @@
     };
     $('#btn-save').onclick = download;
     $('#btn-print').onclick = () => { buildPrint(); window.print(); };
+    $('#btn-pdf').onclick = exportPdf;
     window.addEventListener('beforeprint', buildPrint);   // aussi pour Ctrl+P
     $('#btn-open').onclick = () => $('#file-input').click();
     $('#file-input').onchange = async e => {

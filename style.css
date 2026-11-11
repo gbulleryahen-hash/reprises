@@ -198,61 +198,74 @@ body.tool-eraser .shape:hover { opacity: .35; }
 
 .ta-note { background: #fdf3d3; border-color: #f0d98c; font-style: italic; }
 
+/* ---------- Fiche de reprise (impression et export PDF) ---------- */
+.ppage {
+  width: 283mm; height: 195mm;
+  display: flex; flex-direction: column;
+  break-after: page; page-break-after: always;
+  font-family: "Times New Roman", Times, Georgia, serif; color: #111;
+}
+.ppage:last-child { break-after: auto; page-break-after: auto; }
+.phead { display: flex; align-items: baseline; gap: 4mm; padding: 0 2mm 2mm; }
+.ptitle { font-size: 17pt; font-weight: 700; text-decoration: underline; }
+.psize { font-size: 10pt; }
+.ppnum { margin-left: auto; font-size: 12pt; }
+
+.pgrid {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr);
+  border-top: 1px dashed #555; border-left: 1px dashed #555;
+}
+.pcell {
+  border-right: 1px dashed #555; border-bottom: 1px dashed #555;
+  padding: 1.5mm 2mm; display: flex; flex-direction: column; gap: 1mm;
+  overflow: hidden; min-height: 0;
+}
+.ptop { display: flex; gap: 1.5mm; flex: 1; min-height: 0; }
+.pnum {
+  flex: none; align-self: flex-start;
+  width: 7mm; height: 7mm; border: 1.2px solid #111;
+  display: flex; align-items: center; justify-content: center;
+  font-family: system-ui, sans-serif; font-size: 10pt;
+}
+.psvg { flex: 1; min-width: 0; min-height: 22mm; }
+.psvg svg { width: 100%; height: 100%; display: block; }
+.psvg .arena { fill: #fff; stroke: #333; stroke-width: 1.5; }
+.psvg .quarterline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .7; }
+.psvg .centerline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .9; }
+.pempty { border-color: transparent; }
+.pdesc { font-size: 7.5pt; line-height: 1.2; }
+.pl { display: grid; grid-template-columns: 9mm 1fr; }
+.pk { font-weight: 400; }
+.pnote {
+  background: #f2c34a; padding: 1.2mm 1.8mm;
+  font-size: 6.8pt; font-style: italic; line-height: 1.2;
+}
+.plegend { justify-content: center; }
+.ptitle-lg { font-weight: 700; font-size: 11pt; text-decoration: underline; margin-bottom: 1.5mm; }
+.lgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 3mm; font-size: 7.5pt; }
+.lg { display: flex; align-items: center; gap: 1.5mm; }
+.lsq { width: 4.5mm; height: 4.5mm; border: 0.6px solid #555; flex: none; }
+.lic { width: 4.5mm; height: 4.5mm; flex: none; }
+
+#print-root.exporting {
+  display: block; position: absolute; left: 0; top: 0; z-index: 1000;
+  background: #fff; width: 283mm;
+}
+#print-root.exporting .ppage { margin-bottom: 10mm; }
+.pdf-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(246, 243, 238, .97);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 600; color: var(--ink);
+}
+
 @media print {
   @page { size: A4 landscape; margin: 7mm; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { background: #fff; margin: 0; }
   body > *:not(#print-root) { display: none !important; }
   #print-root { display: block; }
-
-  .ppage {
-    width: 283mm; height: 195mm;
-    display: flex; flex-direction: column;
-    break-after: page; page-break-after: always;
-    font-family: "Times New Roman", Times, Georgia, serif; color: #111;
-  }
-  .ppage:last-child { break-after: auto; page-break-after: auto; }
-  .phead { display: flex; align-items: baseline; gap: 4mm; padding: 0 2mm 2mm; }
-  .ptitle { font-size: 17pt; font-weight: 700; text-decoration: underline; }
-  .psize { font-size: 10pt; }
-  .ppnum { margin-left: auto; font-size: 12pt; }
-
-  .pgrid {
-    flex: 1; min-height: 0;
-    display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr);
-    border-top: 1px dashed #555; border-left: 1px dashed #555;
-  }
-  .pcell {
-    border-right: 1px dashed #555; border-bottom: 1px dashed #555;
-    padding: 1.5mm 2mm; display: flex; flex-direction: column; gap: 1mm;
-    overflow: hidden; min-height: 0;
-  }
-  .ptop { display: flex; gap: 1.5mm; flex: 1; min-height: 0; }
-  .pnum {
-    flex: none; align-self: flex-start;
-    width: 7mm; height: 7mm; border: 1.2px solid #111;
-    display: flex; align-items: center; justify-content: center;
-    font-family: system-ui, sans-serif; font-size: 10pt;
-  }
-  .psvg { flex: 1; min-width: 0; min-height: 22mm; }
-  .psvg svg { width: 100%; height: 100%; display: block; }
-  .psvg .arena { fill: #fff; stroke: #333; stroke-width: 1.5; }
-  .psvg .quarterline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .7; }
-  .psvg .centerline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .9; }
-  .pempty { border-color: transparent; }
-  .pdesc { font-size: 7.5pt; line-height: 1.2; }
-  .pl { display: grid; grid-template-columns: 9mm 1fr; }
-  .pk { font-weight: 400; }
-  .pnote {
-    background: #f2c34a; padding: 1.2mm 1.8mm;
-    font-size: 6.8pt; font-style: italic; line-height: 1.2;
-  }
-  .plegend { justify-content: center; }
-  .ptitle-lg { font-weight: 700; font-size: 11pt; text-decoration: underline; margin-bottom: 1.5mm; }
-  .lgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 3mm; font-size: 7.5pt; }
-  .lg { display: flex; align-items: center; gap: 1.5mm; }
-  .lsq { width: 4.5mm; height: 4.5mm; border: 0.6px solid #555; flex: none; }
-  .lic { width: 4.5mm; height: 4.5mm; flex: none; }
 }
 
 /* Petits écrans : la barre d'outils (désormais haute) ne reste pas collée en haut */
