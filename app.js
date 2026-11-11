@@ -68,7 +68,7 @@
   ];
   const MOVE_IDS = MOVES.map(m => m.id);
 
-  const DIAMS = [6, 10, 12, 15, 20];
+  const DIAMS = [6, 10, 12, 15, 20, 30, 40];
 
   // Position des lettres (distance depuis A, en mètres)
   const LETTERS = {
