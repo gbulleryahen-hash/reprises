@@ -69,13 +69,19 @@
 
   // Position des lettres (distance depuis A, en mètres)
   const LETTERS = {
+    // 20 × 40 complet (comme les reprises Club / Poney) : lettres espacées de 7 m
     40: {
-      wall:   [['K', 'F', 6], ['E', 'B', 20], ['H', 'M', 34]],
-      center: [['D', 6], ['X', 20], ['G', 34]],
+      wall:   [['K', 'F', 6], ['V', 'P', 13], ['E', 'B', 20], ['S', 'R', 27], ['H', 'M', 34]],
+      center: [['D', 6], ['L', 13], ['X', 20], ['I', 27], ['G', 34]],
     },
     60: {
       wall:   [['K', 'F', 6], ['V', 'P', 18], ['E', 'B', 30], ['S', 'R', 42], ['H', 'M', 54]],
       center: [['D', 6], ['L', 18], ['X', 30], ['I', 42], ['G', 54]],
+    },
+    // 20 × 80 : lettres de coin à 6 m, puis espacées régulièrement (17 m)
+    80: {
+      wall:   [['K', 'F', 6], ['V', 'P', 23], ['E', 'B', 40], ['S', 'R', 57], ['H', 'M', 74]],
+      center: [['D', 6], ['L', 23], ['X', 40], ['I', 57], ['G', 74]],
     },
   };
 
@@ -361,7 +367,7 @@
       page: data.page === 'portrait' ? 'portrait' : 'paysage',
       cases: data.cases.map(c => ({
         id: uid(),
-        size: c.size === 40 ? 40 : 60,
+        size: [40, 60, 80].includes(c.size) ? c.size : 60,
         orient: c.orient === 'h' ? 'h' : 'v',
         text: String(c.text || ''),
         note: String(c.note || ''),
@@ -807,7 +813,7 @@
         <span class="num">Case ${idx + 1}</span>
         <div class="controls no-print">
           <select data-k="size" title="Dimensions">
-            <option value="40">20 × 40</option><option value="60">20 × 60</option>
+            <option value="40">20 × 40</option><option value="60">20 × 60</option><option value="80">20 × 80</option>
           </select>
           <select data-k="orient" title="Orientation">
             <option value="v">Verticale</option><option value="h">Horizontale</option>
