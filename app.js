@@ -1,5 +1,12 @@
 'use strict';
 /*
+ * Éditeur de reprises de dressage
+ * Copyright (C) 2026 gbulleryahen-hash
+ *
+ * Ce programme est un logiciel libre, distribué sous licence GNU GPL version 3
+ * ou ultérieure. Voir le fichier LICENSE.
+ */
+/*
  * Éditeur de reprises de dressage — site statique (GitHub Pages).
  * Toutes les formes sont stockées en mètres dans le repère de la carrière :
  *   x = largeur (0 = côté gauche K/E/H, 20 = côté droit F/B/M)

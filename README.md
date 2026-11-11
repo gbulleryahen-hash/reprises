@@ -20,3 +20,15 @@ Petit site statique pour dessiner les figures d'une reprise de dressage, case pa
 3. Le site sera disponible à l'adresse `https://<utilisateur>.github.io/reprises/`.
 
 Aucune dépendance, aucune compilation : on peut aussi ouvrir `index.html` directement dans le navigateur.
+
+## Licence
+
+Copyright (C) 2026 gbulleryahen-hash
+
+Ce programme est un logiciel libre : vous pouvez le redistribuer et/ou le modifier selon les termes de la
+**Licence publique générale GNU (GPL) version 3**, ou (à votre choix) toute version ultérieure,
+telle que publiée par la Free Software Foundation.
+
+Ce programme est distribué dans l'espoir qu'il sera utile, mais SANS AUCUNE GARANTIE, sans même la garantie
+implicite de QUALITÉ MARCHANDE ou d'ADÉQUATION À UN USAGE PARTICULIER. Voir le fichier [LICENSE](LICENSE)
+pour le texte complet de la licence.
