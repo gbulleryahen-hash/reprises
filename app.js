@@ -1089,7 +1089,18 @@
         if (i) pdf.addPage();
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 7, 7, 283, 195);
       }
-      pdf.save(fileName().replace(/\.reprise\.json$/, '.pdf'));
+      // Lien de téléchargement cliqué par l'utilisateur : fonctionne aussi sur Safari / iPad,
+      // qui bloquent les téléchargements lancés automatiquement après un long calcul.
+      const name = fileName().replace(/\.reprise\.json$/, '.pdf');
+      const url = URL.createObjectURL(pdf.output('blob'));
+      await new Promise(done => {
+        overlay.innerHTML = `<div class="pdf-ready"><p>Le PDF est prêt.</p>
+          <a class="pdf-dl" href="${url}" download="${esc(name)}">Télécharger le PDF</a>
+          <button type="button" class="pdf-close">Fermer</button></div>`;
+        overlay.querySelector('.pdf-dl').addEventListener('click', () => setTimeout(done, 300));
+        overlay.querySelector('.pdf-close').onclick = done;
+      });
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (err) {
       console.error(err);
       alert('L’export PDF direct n’a pas fonctionné (une connexion internet est nécessaire).\n' +
