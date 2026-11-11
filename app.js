@@ -33,7 +33,7 @@
   const TOOLS = [
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
     { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap pour annuler. Les angles sont arrondis en arcs de 6 m.' },
-    { id: 'circle', label: '◯ Cercle',     hint: 'Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez, puis bougez la souris dans le sens de rotation et cliquez pour valider (Échap pour annuler).' },
+    { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Glissez de la lettre de départ à la lettre d’arrivée, puis placez la souris du côté de l’arc et cliquez pour valider (Échap pour annuler).' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
@@ -440,6 +440,28 @@
   }
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* stockage indisponible */ }
+    updateTotal();
+  }
+
+  // Longueur totale (m) de tous les tracés de toutes les figures
+  function totalLength() {
+    let m = 0;
+    for (const c of state.cases) {
+      const g = geom(c.size, c.orient);
+      for (const sh of c.shapes) {
+        if (sh.t === 'sym') continue;
+        m += sh.t === 'circle' ? 2 * Math.PI * sh.r : polyLength(screenPolyline(sh, g)) / S;
+      }
+    }
+    return Math.round(m);
+  }
+  const totalText = () => `(${totalLength().toLocaleString('fr-FR')} m)`;
+  function updateTotal() {
+    const el = document.getElementById('total-len');
+    if (el) el.textContent = totalText();
+    // le champ du titre prend la largeur de son texte, pour que la longueur soit juste à côté
+    const t = document.getElementById('title');
+    if (t) t.size = Math.max(16, (t.value || '').length + 2);
   }
 
   let state = load() || newReprise();
@@ -730,7 +752,7 @@
       s = `<path d="${polyPath(filletPoints(all, CORNER_R).map(g.to))}" ${st} stroke-dasharray="6 5"/>` +
         drag.pts.map(p => { const q = g.to(p); return `<circle cx="${q.x}" cy="${q.y}" r="3.5" fill="${col}"/>`; }).join('');
     } else if (drag.tool === 'circle' && drag.phase === 'dir') {
-      const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: ui.diam / 2, a: drag.a, dir: circleDir(drag.a, drag.ctr, drag.cursor) };
+      const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: drag.r, a: drag.a, dir: circleDir(drag.a, drag.ctr, drag.cursor) };
       s = `<g opacity=".75">${shapeSvg(sh, g, -1)}</g>`;
     } else if (drag.tool === 'circle') {
       const ctr = circleCenter(drag.a, drag.raw, ui.diam / 2, c), q = g.to(ctr);
@@ -830,10 +852,12 @@
       return;
     }
     if (tool === 'circle' && drag && drag.phase === 'dir') {
-      const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: ui.diam / 2, a: drag.a, dir: circleDir(drag.a, drag.ctr, raw) };
-      drag = null;
+      // on presse du côté voulu (ou on glisse), le cercle est validé au relâchement
+      r.svg.setPointerCapture(e.pointerId);
+      drag.pressed = true;
+      drag.cursor = raw;
       drawPreview(c);
-      mutate(c, () => c.shapes.push(sh));
+      e.preventDefault();
       return;
     }
     if (tool === 'arc' && drag && drag.phase === 'side') {
@@ -865,6 +889,14 @@
   }
 
   function onUp(e, c) {
+    if (drag && drag.caseId === c.id && drag.phase === 'dir' && drag.pressed) {
+      const raw = geom(c.size, c.orient).from(svgPoint(refs.get(c.id).svg, e));
+      const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: drag.r, a: drag.a, dir: circleDir(drag.a, drag.ctr, raw) };
+      drag = null;
+      drawPreview(c);
+      mutate(c, () => c.shapes.push(sh));
+      return;
+    }
     if (!drag || drag.caseId !== c.id || drag.phase || drag.tool === 'line') return;
     const d = drag;
     let sh = null;
@@ -875,7 +907,8 @@
       sh = { t: 'sym', k: d.k, g: ui.gait, x: d.a.x, y: d.a.y, a: symAngle(d) };
     } else if (d.tool === 'circle') {
       // 2e temps : le sens de rotation suit la souris, un clic valide
-      d.ctr = circleCenter(d.a, d.raw, ui.diam / 2, c);
+      d.r = ui.diam / 2;
+      d.ctr = circleCenter(d.a, d.raw, d.r, c);
       const tc = Math.atan2(d.a.y - d.ctr.y, d.a.x - d.ctr.x);
       d.a = pt(d.ctr.x + ui.diam / 2 * Math.cos(tc), d.ctr.y + ui.diam / 2 * Math.sin(tc));
       d.phase = 'dir';
@@ -1039,6 +1072,7 @@
     };
     wrap.appendChild(add);
     $('#title').value = state.title;
+    updateTotal();
     $('#sym-scale').value = K();
     $('#sym-scale-val').textContent = Math.round(K() * 100) + ' %';
     applySplit();
@@ -1204,7 +1238,7 @@
     root.innerHTML = pages.map((pc, n) => `
       <section class="ppage">
         <header class="phead">
-          <span class="ptitle">${title}</span><span class="psize">${sizeTxt}</span>
+          <span class="ptitle">${title}</span><span class="ptotal">${totalText()}</span><span class="psize">${sizeTxt}</span>
           <span class="ppnum">Page ${n + 1}${pages.length > 1 ? ' / ' + pages.length : ''}</span>
         </header>
         <div class="pgrid">${pc.join('')}${'<div class="pcell pempty"></div>'.repeat(PER_PAGE - pc.length)}</div>
@@ -1314,7 +1348,7 @@
         alert('Impossible d’ouvrir ce fichier : ' + err.message);
       }
     };
-    $('#title').oninput = e => { state.title = e.target.value; save(); };
+    $('#title').oninput = e => { state.title = e.target.value; save(); };  // save() met aussi à jour la largeur
 
     document.addEventListener('keydown', e => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
