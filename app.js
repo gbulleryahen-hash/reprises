@@ -361,7 +361,7 @@
   }
 
   // ---------------------------------------------------------------- État
-  const newCase = (size = 60, orient = 'v') => ({ id: uid(), size, orient, text: '', note: '', shapes: [] });
+  const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, text: '', note: '', shapes: [] });
   const newReprise = () => ({ version: 1, title: '', cases: [newCase()] });
 
   function normalize(data) {
@@ -910,7 +910,7 @@
     add.textContent = '+';
     add.onclick = () => {
       const last = state.cases[state.cases.length - 1];
-      const c = newCase(last ? last.size : 60, last ? last.orient : 'v');
+      const c = newCase(last ? last.size : 60, last ? last.orient : 'v2');
       state.cases.push(c);
       save(); renderAll();
       refs.get(c.id).el.scrollIntoView({ behavior: 'smooth', block: 'center' });
