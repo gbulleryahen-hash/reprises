@@ -9,7 +9,8 @@
 (() => {
   // ---------------------------------------------------------------- Constantes
   const S = 10;          // unités SVG par mètre
-  const M = 40;          // marge autour de la carrière (pour les lettres)
+  const PAD = 1;         // écart (m) entre la piste (points d'accroche) et le bord dessiné
+  const M = 40 + PAD * S; // marge autour de la piste (bord + lettres)
   const STROKE = 3.5;    // épaisseur des tracés
   const SNAP_R = 1.6;    // rayon d'accroche aux lettres (m)
   const STORAGE_KEY = 'reprises.courante';
@@ -276,11 +277,14 @@
   // ---------------------------------------------------------------- Rendu carrière
   function arenaSvg(c, g) {
     const L = c.size, d = LETTERS[c.size];
-    const p0 = g.to({ x: 0, y: 0 }), p1 = g.to({ x: 20, y: L });
+    // Le bord est dessiné à PAD mètres à l'extérieur de la piste :
+    // les points d'accroche (x = 0 / 20, y = 0 / L) restent sur la piste.
+    const P = PAD;
+    const p0 = g.to({ x: -P, y: -P }), p1 = g.to({ x: 20 + P, y: L + P });
     const x = Math.min(p0.x, p1.x), y = Math.min(p0.y, p1.y);
     const w = Math.abs(p1.x - p0.x), h = Math.abs(p1.y - p0.y);
     let s = `<rect class="arena" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
-    const a = g.to({ x: 10, y: 0 }), cc = g.to({ x: 10, y: L });
+    const a = g.to({ x: 10, y: -P }), cc = g.to({ x: 10, y: L + P });
     s += `<line class="centerline" x1="${a.x}" y1="${a.y}" x2="${cc.x}" y2="${cc.y}"/>`;
 
     const label = (n, p, cls = 'letter') => {
@@ -292,11 +296,11 @@
       return `<line class="tick" x1="${q1.x}" y1="${q1.y}" x2="${q2.x}" y2="${q2.y}"/>`;
     };
     for (const [l, r, yy] of d.wall) {
-      s += tick({ x: 0, y: yy }, { x: -0.8, y: yy }) + label(l, { x: -2, y: yy });
-      s += tick({ x: 20, y: yy }, { x: 20.8, y: yy }) + label(r, { x: 22, y: yy });
+      s += tick({ x: -P, y: yy }, { x: -P - 0.7, y: yy }) + label(l, { x: -P - 1.9, y: yy });
+      s += tick({ x: 20 + P, y: yy }, { x: 20 + P + 0.7, y: yy }) + label(r, { x: 20 + P + 1.9, y: yy });
     }
     for (const [n, yy] of d.center) s += label(n, { x: 10, y: yy }, 'cletter');
-    s += label('A', { x: 10, y: -2 }) + label('C', { x: 10, y: L + 2 });
+    s += label('A', { x: 10, y: -P - 1.9 }) + label('C', { x: 10, y: L + P + 1.9 });
     return s;
   }
 
