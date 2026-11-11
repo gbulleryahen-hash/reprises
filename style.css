@@ -175,6 +175,7 @@ textarea {
 /* ---------- Dessin de la carrière ---------- */
 .arena { fill: var(--sand); stroke: var(--sand-edge); stroke-width: 2; }
 .centerline { stroke: #6b5a4c; stroke-width: 1; stroke-dasharray: 4 4; opacity: .6; }
+.quarterline { stroke: #6b5a4c; stroke-width: 1; stroke-dasharray: 1 5; stroke-linecap: round; opacity: .45; }
 .tick { stroke: var(--sand-edge); stroke-width: 2; }
 .letter { font-size: 20px; font-weight: 700; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
 .cletter { font-size: 15px; font-weight: 700; fill: #6b5a4c; opacity: .5; text-anchor: middle; dominant-baseline: central; }
@@ -206,4 +207,9 @@ body.tool-eraser .shape:hover { opacity: .35; }
   .drawing { height: 105mm; background: #fff; }
   .print-text { white-space: pre-wrap; font-size: 10pt; min-height: 8mm; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* Petits écrans : la barre d'outils (désormais haute) ne reste pas collée en haut */
+@media (max-height: 900px), (max-width: 700px) {
+  .toolbar { position: static; }
 }

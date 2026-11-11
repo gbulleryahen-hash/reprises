@@ -35,17 +35,33 @@
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
-  // Symboles ponctuels (on clique pour les poser)
+  // Figures ponctuelles : clic pour poser, cliquer-glisser pour orienter
   const SYMBOLS = [
-    { id: 'halt', label: 'Arrêt' },
+    { id: 'halt',        label: 'Arrêt' },
+    { id: 'dt_hanches',  label: 'Demi-tour sur les hanches' },
+    { id: 'dt_epaules',  label: 'Demi-tour sur les épaules' },
+    { id: 'qt_hanches',  label: 'Quart de tour sur les hanches' },
+    { id: 'qt_epaules',  label: 'Quart de tour sur les épaules' },
+    { id: 'pirouette',   label: 'Pirouette' },
+    { id: 'cone',        label: 'Cône' },
+    { id: 'barre',       label: 'Barre au sol' },
+    { id: 'croisillon',  label: 'Croisillon' },
   ];
+  const UNROTATED = ['halt', 'cone'];
+  const BLACK_SYMBOLS = ['halt', 'cone', 'barre', 'croisillon'];
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
   const MOVES = [
-    { id: 'droit',    label: 'Droit' },
-    { id: 'shoulder', label: 'Épaule en dedans' },
-    { id: 'cession',  label: 'Cession à la jambe' },
-    { id: 'appuyer',  label: 'Appuyer' },
+    { id: 'droit',     label: 'Droit' },
+    { id: 'shoulder',  label: 'Épaule en dedans' },
+    { id: 'ea',        label: 'Épaule en avant' },
+    { id: 'ced',       label: 'Contre-épaule en dedans' },
+    { id: 'hdedans',   label: 'Hanches en dedans' },
+    { id: 'hdehors',   label: 'Hanches en dehors' },
+    { id: 'cession',   label: 'Cession à la jambe' },
+    { id: 'appuyer',   label: 'Appuyer' },
+    { id: 'pasdecote', label: 'Pas de côté' },
+    { id: 'reculer',   label: 'Reculer' },
   ];
   const MOVE_IDS = MOVES.map(m => m.id);
 
@@ -94,6 +110,8 @@
     ];
     d.wall.forEach(([l, r, y]) => pts.push({ n: l, x: 0, y }, { n: r, x: 20, y }));
     d.center.forEach(([n, y]) => pts.push({ n, x: 10, y }));
+    // lignes du quart (5 m des grands côtés), à hauteur des lettres et aux extrémités
+    for (const y of [0, L, ...d.wall.map(w => w[2])]) pts.push({ n: 'quart', x: 5, y }, { n: 'quart', x: 15, y });
     return pts;
   }
 
@@ -104,7 +122,12 @@
       const d = dist(p, s);
       if (d < bd) { bd = d; best = s; }
     }
-    return best ? { x: best.x, y: best.y, n: best.n } : { x: p.x, y: p.y };
+    if (best) return { x: best.x, y: best.y, n: best.n };
+    // sinon : accroche n'importe où le long des deux lignes du quart
+    if (p.y >= 0 && p.y <= c.size) {
+      for (const qx of [5, 15]) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'quart' };
+    }
+    return { x: p.x, y: p.y };
   }
 
   // ---------------------------------------------------------------- Lissage main levée
@@ -245,10 +268,33 @@
   const CORNER_R = 3;   // arcs de 6 m de diamètre dans les angles
 
   // ---------------------------------------------------------------- Symboles
+  const ln = (d, color, w = 2.4) =>
+    `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const dot = (x, y, color, r = 2.4) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/>`;
+
+  // Arc fléché centré en (0,0) ; angles en degrés (0 = avant du cheval, sens horaire à l'écran)
+  function arcArrow(r, a0, a1, color, both = false) {
+    const rad = a => a * Math.PI / 180;
+    const P = a => ({ x: r2(r * Math.cos(rad(a))), y: r2(r * Math.sin(rad(a))) });
+    const p0 = P(a0), p1 = P(a1);
+    const sweep = a1 > a0 ? 1 : 0, large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+    const head = (a, dir) => {
+      const p = P(a);
+      const t = { x: -Math.sin(rad(a)) * dir, y: Math.cos(rad(a)) * dir };   // tangente
+      const n = { x: -t.y, y: t.x };
+      const tip = { x: p.x + t.x * 2, y: p.y + t.y * 2 };
+      const b1 = { x: p.x - t.x * 3.5 + n.x * 3.2, y: p.y - t.y * 3.5 + n.y * 3.2 };
+      const b2 = { x: p.x - t.x * 3.5 - n.x * 3.2, y: p.y - t.y * 3.5 - n.y * 3.2 };
+      return `<polygon points="${r2(tip.x)},${r2(tip.y)} ${r2(b1.x)},${r2(b1.y)} ${r2(b2.x)},${r2(b2.y)}" fill="${color}"/>`;
+    };
+    const dir = a1 > a0 ? 1 : -1;
+    return ln(`M${p0.x},${p0.y}A${r},${r} 0 ${large} ${sweep} ${p1.x},${p1.y}`, color, 2) +
+      head(a1, dir) + (both ? head(a0, -dir) : '');
+  }
+
+  // Figures ponctuelles. Repère local : +x = vers l'avant du cheval.
   function glyph(kind, color) {
     switch (kind) {
-      case 'droit':
-        return `<path d="M-9 0H7M1 -6L8 0L1 6" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
       case 'halt': {
         const pts = Array.from({ length: 8 }, (_, k) => {
           const a = Math.PI / 8 + k * Math.PI / 4;
@@ -256,15 +302,49 @@
         }).join(' ');
         return `<polygon points="${pts}" fill="#222"/><rect x="-6.5" y="-2" width="13" height="4" fill="#fff"/>`;
       }
-      case 'cession':
+      // pivot = gros point noir ; trait = corps ; petit point = tête
+      case 'dt_hanches':
+        return ln('M0,0H8', color) + dot(9, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 0, 180, color);
+      case 'dt_epaules':
+        return ln('M0,0H-9', color) + dot(2.5, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 180, 360, color);
+      case 'qt_hanches':
+        return ln('M0,0H8', color) + dot(9, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 0, 90, color);
+      case 'qt_epaules':
+        return ln('M0,0H-9', color) + dot(2.5, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 180, 270, color);
+      case 'pirouette':
+        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true);
+      case 'cone':
+        return `<polygon points="0,-10 8.5,7 -8.5,7" fill="#222"/>`;
+      case 'barre': {
+        let r = `<rect x="-16" y="-2.2" width="32" height="4.4" fill="#fff" stroke="#222" stroke-width="1"/>`;
+        for (let k = 0; k < 4; k++) r += `<rect x="${-16 + k * 8}" y="-2.2" width="4" height="4.4" fill="#222"/>`;
+        return r;
+      }
+      case 'croisillon':
+        return `<path d="M-15,-7L0,-1.5L15,-7V7L0,1.5L-15,7Z" fill="#fff" stroke="#222" stroke-width="1.6" stroke-linejoin="round"/>` +
+          `<path d="M-15,-7V7L-8,4.5V-4.5ZM15,-7V7L8,4.5V-4.5Z" fill="#222"/><rect x="-3" y="-1.8" width="6" height="3.6" fill="#222"/>`;
+      // anciens symboles ponctuels (compatibilité avec les fichiers déjà enregistrés)
+      case 'cession': case 'shoulder': case 'appuyer':
         return `<circle r="11" fill="#fff" stroke="${color}" stroke-width="2.5"/>` +
-          `<path d="M-6.5 4L-2.2 -4L2.2 4L6.5 -4" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
-      case 'shoulder':
-        return `<circle r="11" fill="#fff" stroke="${color}" stroke-width="2.5"/>` +
-          `<text text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="${color}" font-family="system-ui,sans-serif">ED</text>`;
-      case 'appuyer':
-        return `<circle r="11" fill="#fff" stroke="${color}" stroke-width="2.5"/>` +
-          `<path d="M-6 5L5 -5M5 -5L-1 -5M5 -5L5 1" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+          `<g transform="scale(.8)">${moveGlyph(kind, color)}</g>`;
+    }
+    return '';
+  }
+
+  // Symboles des déplacements. Repère local : +x = sens de la marche, +y = côté intérieur.
+  // Les « crochets » représentent le cheval vu de dessus : trait = corps, point = tête.
+  function moveGlyph(kind, color) {
+    switch (kind) {
+      case 'droit':     return ln('M-5,-5.5L3,0L-5,5.5', color, 3);
+      case 'shoulder':  return ln('M-8,-1L2,3.5Q5,5 5.5,8.5', color) + dot(5.5, 9, color);
+      case 'ea':        return ln('M-8,0L3,2Q6,3 6.5,5.5', color) + dot(6.5, 6, color);
+      case 'ced':       return ln('M-8,1L2,-3.5Q5,-5 5.5,-8.5', color) + dot(5.5, -9, color);
+      case 'hdedans':   return ln('M-7,7L2,0Q5,-2 8,-0.5', color) + dot(8.5, -0.3, color);
+      case 'hdehors':   return ln('M-7,-7L2,0Q5,2 8,0.5', color) + dot(8.5, 0.3, color);
+      case 'cession':   return ln('M-9,0H8M3,-4L8.5,0L3,4', color, 2.2);
+      case 'appuyer':   return ln('M-9,0H8M3,-4L8.5,0L3,4M-5,-4L0,4M-5,4L0,-4', color, 2.2);
+      case 'pasdecote': return ln('M-9,0H8M3,-4L8.5,0L3,4M-3,-4L2,4M-3,4L2,-4', color, 2.2);
+      case 'reculer':   return ln('M-8,0H8M-4,-3.5L-8.5,0L-4,3.5M4,-3.5L8.5,0L4,3.5', color, 2);
     }
     return '';
   }
@@ -305,7 +385,7 @@
   const ui = { tool: 'free', gait: 'trot', move: 'droit', diam: 10, snap: true };
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
-    if (saved.tool && (TOOLS.some(t => t.id === saved.tool) || saved.tool === 'sym:halt')) ui.tool = saved.tool;
+    if (saved.tool && (TOOLS.some(t => t.id === saved.tool) || (saved.tool.startsWith('sym:') && SYMBOLS.some(f => 'sym:' + f.id === saved.tool)))) ui.tool = saved.tool;
     if (GAIT[saved.gait]) ui.gait = saved.gait;
     if (MOVE_IDS.includes(saved.move)) ui.move = saved.move;
     if (DIAMS.includes(saved.diam)) ui.diam = saved.diam;
@@ -346,6 +426,10 @@
     let s = `<rect class="arena" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
     const a = g.to({ x: 10, y: -P }), cc = g.to({ x: 10, y: L + P });
     s += `<line class="centerline" x1="${a.x}" y1="${a.y}" x2="${cc.x}" y2="${cc.y}"/>`;
+    for (const qx of [5, 15]) {
+      const q1 = g.to({ x: qx, y: 0 }), q2 = g.to({ x: qx, y: L });
+      s += `<line class="quarterline" x1="${q1.x}" y1="${q1.y}" x2="${q2.x}" y2="${q2.y}"/>`;
+    }
 
     const label = (n, p, cls = 'letter') => {
       const q = g.to(p);
@@ -442,12 +526,41 @@
         `fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
       ).join('');
     }
-    // Épaule en dedans, cession, appuyer : le symbole est répété sur le parcours
-    const n = Math.max(1, Math.round(len / (closed ? 110 : 100)));
+    // Déplacements latéraux : le symbole est répété le long du parcours,
+    // orienté selon le sens de la marche et le côté intérieur.
+    const step = 58;
+    const n = Math.max(1, Math.round(len / step));
     const ds = Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
-    return pointsAlong(poly, ds).map(p =>
-      `<g transform="translate(${r2(p.x)},${r2(p.y)}) scale(.85)">${glyph(move, col)}</g>`
-    ).join('');
+    // côté « intérieur » : centre du cercle, sinon centre de la carrière
+    const ref = closed ? g.to(sh.c) : g.to({ x: 10, y: g.L / 2 });
+    // axe des grands côtés à l'écran (pour cession / appuyer : le cheval reste parallèle au grand côté)
+    const o = g.to({ x: 0, y: 0 }), o1 = g.to({ x: 0, y: 1 });
+    const ey = { x: (o1.x - o.x) / S, y: (o1.y - o.y) / S };
+    return pointsAlong(poly, ds).map(p => {
+      const a = p.ang * Math.PI / 180;
+      const t = { x: Math.cos(a), y: Math.sin(a) };
+      const nIn = { x: -t.y, y: t.x };
+      const side = (ref.x - p.x) * nIn.x + (ref.y - p.y) * nIn.y >= 0 ? 1 : -1;
+      let tr = `translate(${r2(p.x)},${r2(p.y)}) `;
+      if (move === 'cession' || move === 'appuyer') {
+        const k = t.x * ey.x + t.y * ey.y;
+        const dir = Math.abs(k) > 0.2 ? { x: ey.x * Math.sign(k), y: ey.y * Math.sign(k) } : t;
+        tr += `rotate(${r2(Math.atan2(dir.y, dir.x) * 180 / Math.PI)})`;
+      } else if (move === 'pasdecote') {
+        tr += `rotate(${r2(p.ang)}) scale(1,${side}) rotate(-90)`;   // tête vers l'extérieur
+      } else {
+        tr += `rotate(${r2(p.ang)}) scale(1,${side})`;
+      }
+      return `<g transform="${tr} scale(1.25)">${moveGlyph(move, col)}</g>`;
+    }).join('');
+  }
+
+  // Angle à l'écran d'une figure (angle stocké en degrés dans le repère de la carrière, 90 = vers C)
+  function symScreenAngle(sh, g) {
+    if (UNROTATED.includes(sh.k)) return 0;
+    const a = (typeof sh.a === 'number' ? sh.a : 90) * Math.PI / 180;
+    const q0 = g.to(sh), q1 = g.to({ x: sh.x + Math.cos(a), y: sh.y + Math.sin(a) });
+    return Math.atan2(q1.y - q0.y, q1.x - q0.x) * 180 / Math.PI;
   }
 
   function shapeSvg(sh, g, i) {
@@ -461,7 +574,9 @@
   function shapeVisual(sh, g, i) {
     const col = (GAIT[sh.g] || GAIT.trot).color;
     const arrow = `marker-end="url(#arr-${GAIT[sh.g] ? sh.g : 'trot'})"`;
-    const stroke = `fill="none" stroke="${col}" stroke-width="${STROKE}" stroke-linecap="round" stroke-linejoin="round"`;
+    const lateral = sh.m && sh.m !== 'droit';
+    const stroke = `fill="none" stroke="${col}" stroke-width="${lateral ? 2.2 : STROKE}" stroke-linecap="round" stroke-linejoin="round"` +
+      (lateral ? ' stroke-opacity=".45"' : '');
     let vis = '', hit = '';
     switch (sh.t) {
       case 'line': {
@@ -487,8 +602,9 @@
       }
       case 'sym': {
         const q = g.to(sh);
-        vis = `<g transform="translate(${q.x},${q.y})">${glyph(sh.k, col)}</g>`;
-        hit = `<circle class="hit-fill" cx="${q.x}" cy="${q.y}" r="13"/>`;
+        const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
+        vis = `<g transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(1.35)">${glyph(sh.k, scol)}</g>`;
+        hit = `<circle class="hit-fill" cx="${q.x}" cy="${q.y}" r="18"/>`;
         break;
       }
       default: return '';
@@ -520,7 +636,11 @@
     const col = GAIT[ui.gait].color;
     const st = `fill="none" stroke="${col}" stroke-width="${STROKE}" stroke-linecap="round" stroke-linejoin="round" opacity=".7"`;
     let s = '';
-    if (drag.tool === 'free') {
+    if (drag.tool === 'sym') {
+      const sh = { k: drag.k, x: drag.a.x, y: drag.a.y, a: symAngle(drag) }, q = g.to(sh);
+      const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
+      s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(1.35)">${glyph(sh.k, scol)}</g>`;
+    } else if (drag.tool === 'free') {
       s = `<path d="${polyPath(drag.pts.map(g.to))}" ${st}/>`;
     } else if (drag.tool === 'line') {
       const all = drag.pts.concat(drag.cursor ? [drag.cursor] : []);
@@ -579,6 +699,13 @@
     if (pts.length >= 2) mutate(c, () => c.shapes.push({ t: 'line', g: ui.gait, m: ui.move, p: pts }));
   }
 
+  // Orientation d'une figure d'après le glissé (degrés, aimantée tous les 15°)
+  function symAngle(d) {
+    const vx = d.raw.x - d.a.x, vy = d.raw.y - d.a.y;
+    if (Math.hypot(vx, vy) < 0.8) return 90;
+    return (Math.round(Math.atan2(vy, vx) * 180 / Math.PI / 15) * 15 + 360) % 360;
+  }
+
   function onDown(e, c) {
     if (e.button !== 0) return;
     lastCaseId = c.id;
@@ -595,7 +722,11 @@
       return;
     }
     if (tool.startsWith('sym:')) {
-      mutate(c, () => c.shapes.push({ t: 'sym', k: tool.slice(4), g: ui.gait, x: r2(p.x), y: r2(p.y) }));
+      // clic = pose ; cliquer-glisser = orienter la figure
+      r.svg.setPointerCapture(e.pointerId);
+      drag = { caseId: c.id, tool: 'sym', k: tool.slice(4), a: pt(p.x, p.y), b: pt(p.x, p.y), raw };
+      drawPreview(c);
+      e.preventDefault();
       return;
     }
     if (tool === 'line') {
@@ -647,6 +778,8 @@
     if (d.tool === 'free') {
       const pts = processFree(d.pts, c);
       if (pts.length >= 2) sh = { t: 'free', g: ui.gait, m: ui.move, p: pts };
+    } else if (d.tool === 'sym') {
+      sh = { t: 'sym', k: d.k, g: ui.gait, x: d.a.x, y: d.a.y, a: symAngle(d) };
     } else if (d.tool === 'circle') {
       sh = { t: 'circle', g: ui.gait, m: ui.move, c: circleCenter(d.a, d.raw, ui.diam / 2, c), r: ui.diam / 2 };
     } else if (d.tool === 'arc') {
@@ -776,10 +909,10 @@
   function buildToolbar() {
     $('#tools').innerHTML = TOOLS.map(t => `<button data-tool="${t.id}">${t.label}</button>`).join('');
     $('#symbols').innerHTML = SYMBOLS.map(s =>
-      `<button data-tool="sym:${s.id}" title="${s.label}"><svg viewBox="-13 -13 26 26" width="20" height="20">${glyph(s.id, '#333')}</svg>${s.label}</button>`
+      `<button data-tool="sym:${s.id}" title="${s.label}"><svg viewBox="-16 -16 32 32" width="22" height="22"><g transform="rotate(${UNROTATED.includes(s.id) ? 0 : -90})">${glyph(s.id, '#333')}</g></svg>${s.label}</button>`
     ).join('');
     $('#moves').innerHTML = MOVES.map(m =>
-      `<button data-move="${m.id}" title="${m.label}"><svg viewBox="-13 -13 26 26" width="20" height="20">${glyph(m.id, '#333')}</svg>${m.label}</button>`
+      `<button data-move="${m.id}" title="${m.label}"><svg viewBox="-13 -13 26 26" width="20" height="20">${moveGlyph(m.id, '#333')}</svg>${m.label}</button>`
     ).join('');
     $('#gaits').innerHTML = GAITS.map(g =>
       `<button data-gait="${g.id}" style="--c:${g.color}"><span class="swatch" style="background:${g.color}"></span>${g.label}</button>`
@@ -812,7 +945,8 @@
     // légende imprimée
     $('#legend').innerHTML =
       GAITS.map(g => `<span><span class="swatch" style="background:${g.color}"></span>${esc(g.label)}</span>`).join('') +
-      MOVES.concat(SYMBOLS).map(s => `<span><svg viewBox="-13 -13 26 26" width="14" height="14">${glyph(s.id, '#333')}</svg>${esc(s.label)}</span>`).join('');
+      MOVES.map(m => `<span><svg viewBox="-13 -13 26 26" width="14" height="14">${moveGlyph(m.id, '#333')}</svg>${esc(m.label)}</span>`).join('') +
+      SYMBOLS.map(f => `<span><svg viewBox="-16 -16 32 32" width="16" height="16"><g transform="rotate(${UNROTATED.includes(f.id) ? 0 : -90})">${glyph(f.id, '#333')}</g></svg>${esc(f.label)}</span>`).join('');
 
     refreshToolbar();
   }
@@ -832,7 +966,7 @@
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
     $('#hint').textContent = t ? t.hint
-      : 'Cliquez dans la carrière pour placer le symbole (il s’accroche aux lettres).';
+      : 'Cliquez pour poser la figure (elle s’accroche aux lettres), ou cliquez-glissez dans la direction du cheval pour l’orienter.';
   }
 
   // ---------------------------------------------------------------- Fichiers
