@@ -26,6 +26,7 @@
     { id: 'galop_all',  label: 'Galop allongé',    color: '#8e0000' },
     { id: 'piaffer',    label: 'Piaffer',          color: '#ab47bc' },
     { id: 'passage',    label: 'Passage',          color: '#4a148c' },
+    { id: 'reculer',    label: 'Reculer',          color: '#d81b60' },
   ];
   const GAIT = Object.fromEntries(GAITS.map(g => [g.id, g]));
 
@@ -65,7 +66,6 @@
     { id: 'cession',   label: 'Cession à la jambe' },
     { id: 'appuyer',   label: 'Appuyer' },
     { id: 'pasdecote', label: 'Pas de côté' },
-    { id: 'reculer',   label: 'Reculer' },
   ];
   const MOVE_IDS = MOVES.map(m => m.id);
 
@@ -561,7 +561,10 @@
 
   // Décorations automatiques selon le type de déplacement
   function decorations(sh, g, col) {
-    const move = MOVE_IDS.includes(sh.m) ? sh.m : 'droit';
+    // « reculer » est une allure : ses tracés portent automatiquement le symbole ↔
+    // (les anciens tracés avec le déplacement « reculer » restent affichés pareil)
+    let move = MOVE_IDS.includes(sh.m) || sh.m === 'reculer' ? sh.m : 'droit';
+    if (sh.g === 'reculer' && move === 'droit') move = 'reculer';
     const poly = screenPolyline(sh, g);
     const len = polyLength(poly);
     if (len < 15) return '';
@@ -624,7 +627,7 @@
   function shapeVisual(sh, g, i) {
     const col = (GAIT[sh.g] || GAIT.trot).color;
     const arrow = `marker-end="url(#arr-${GAIT[sh.g] ? sh.g : 'trot'})"`;
-    const lateral = sh.m && sh.m !== 'droit';
+    const lateral = (sh.m && sh.m !== 'droit') || sh.g === 'reculer';
     const stroke = `fill="none" stroke="${col}" stroke-width="${lateral ? 2.2 : STROKE}" stroke-linecap="round" stroke-linejoin="round"` +
       (lateral ? ' stroke-opacity=".45"' : '');
     let vis = '', hit = '';
