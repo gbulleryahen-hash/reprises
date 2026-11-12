@@ -55,7 +55,7 @@
 
   const TOOLS = [
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
-    { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap pour annuler. Les angles sont arrondis en arcs de 6 m.' },
+    { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap ou clic droit pour annuler. Les angles sont arrondis en arcs de 6 m.' },
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Glissez de la lettre de départ à la lettre d’arrivée, puis placez la souris du côté de l’arc et cliquez pour valider (Échap pour annuler).' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
@@ -1020,7 +1020,11 @@
   }
 
   function onDown(e, c) {
-    if (e.button === 2) { cancelDrag(); e.preventDefault(); return; }   // clic droit : annule le tracé en cours
+    if (e.button === 2) {                // clic droit : annule le tracé en cours, sinon la dernière action
+      e.preventDefault();
+      if (drag) cancelDrag(); else { lastCaseId = c.id; undo(c); }
+      return;
+    }
     if (e.button === 1) { startPan(e, c); return; }                     // molette maintenue : déplacer la vue
     if (e.button !== 0) return;
     lastCaseId = c.id;
