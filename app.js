@@ -57,7 +57,7 @@
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
     { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap ou clic droit pour annuler. Les angles sont arrondis en arcs de 6 m.' },
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
-    { id: 'arc',    label: '◠ Arc',        hint: 'Glissez de la lettre de départ à la lettre d’arrivée, puis placez la souris du côté de l’arc et cliquez pour valider (Échap pour annuler).' },
+    { id: 'arc',    label: '◠ Arc',        hint: 'Demi-cercle du diamètre choisi : cliquez au départ et glissez dans la direction voulue (l’arrivée se place toute seule), relâchez, puis cliquez du côté de l’arc. Maintenez Maj pour un arc libre jusqu’à une lettre. Échap ou clic droit pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
@@ -173,10 +173,20 @@
     return pts;
   }
 
+  // extrémités des tracés déjà dessinés dans la figure (pour enchaîner les tracés)
+  function shapeEnds(c) {
+    const out = [];
+    for (const sh of c.shapes) {
+      if ((sh.t === 'line' || sh.t === 'free') && sh.p && sh.p.length) out.push(sh.p[0], sh.p[sh.p.length - 1]);
+      else if (sh.t === 'arc') out.push(sh.a, sh.b);
+      else if (sh.t === 'circle' && sh.a) out.push(sh.a);
+    }
+    return out.filter(Boolean).map(q => ({ n: 'fin', x: q.x, y: q.y }));
+  }
   function snap(p, c) {
     if (!ui.snap) return { x: p.x, y: p.y };
     let best = null, bd = SNAP_R;
-    for (const s of snapPoints(c.size)) {
+    for (const s of shapeEnds(c).concat(snapPoints(c.size))) {
       const d = dist(p, s);
       if (d < bd) { bd = d; best = s; }
     }
@@ -1223,6 +1233,16 @@
     if (drag.phase) { drag.cursor = raw; drawPreview(c); return; }
     if (drag.tool === 'free') drag.pts.push(raw);
     else if (drag.tool === 'line') { const p = snap(raw, c); drag.cursor = pt(p.x, p.y); }
+    else if (drag.tool === 'arc' && !e.shiftKey) {
+      // demi-cercle : l'arrivée est à exactement un diamètre du départ, dans la direction de la souris
+      // (aimantée sur les axes de la carrière à ±20°)
+      let ang = Math.atan2(raw.y - drag.a.y, raw.x - drag.a.x);
+      const q = Math.round(ang / (Math.PI / 2)) * (Math.PI / 2);
+      if (Math.abs(ang - q) < Math.PI / 9) ang = q;
+      const dm = ui.diam;
+      drag.b = pt(drag.a.x + Math.cos(ang) * dm, drag.a.y + Math.sin(ang) * dm);
+      drag.raw = raw;
+    }
     else { const p = snap(raw, c); drag.b = pt(p.x, p.y); drag.raw = raw; }
     drawPreview(c);
   }
