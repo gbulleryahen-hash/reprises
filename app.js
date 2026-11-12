@@ -1671,10 +1671,10 @@
             <div><dt>Figures</dt><dd>${n}</dd></div>
             <div><dt>Parcours</dt><dd>${len} m</dd></div>
             <div><dt>Durée</dt><dd>≈ ${time}</dd></div>
+            <div class="ppg"><dt>Page</dt><dd>${k + 1} / ${pages.length}</dd></div>
           </dl>
         </header>
         <div class="pgrid">${pc.join('')}${'<div class="pcell pempty"></div>'.repeat(PER_PAGE - pc.length)}</div>
-        <footer class="pfoot"><span>${title}</span><span>Page ${k + 1} / ${pages.length}</span></footer>
       </section>`).join('');
   }
 

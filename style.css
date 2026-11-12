@@ -212,7 +212,7 @@ body.tool-eraser .shape:hover { opacity: .35; }
 
 .phead {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 6mm;
-  padding: 0 0.5mm 2.2mm; margin-bottom: 3mm;
+  padding: 0 0.5mm 1.8mm; margin-bottom: 2.5mm;
   border-bottom: 0.6mm solid var(--ink);
 }
 .ph-l { min-width: 0; }
@@ -224,6 +224,7 @@ body.tool-eraser .shape:hover { opacity: .35; }
 .pmeta { display: flex; gap: 5mm; margin: 0; flex: none; }
 .pmeta div { display: flex; flex-direction: column; align-items: flex-end; }
 .pmeta dt { font-size: 5.8pt; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.pmeta .ppg { padding-left: 5mm; border-left: 0.2mm solid var(--rule); }
 .pmeta dd { margin: 0.4mm 0 0; font-size: 9pt; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .pgrid {
@@ -233,7 +234,7 @@ body.tool-eraser .shape:hover { opacity: .35; }
 }
 .pcell {
   border: 0.25mm solid var(--rule); border-radius: 1.4mm;
-  padding: 1.8mm 2mm 2mm; display: flex; flex-direction: column; gap: 1.3mm;
+  padding: 1.6mm 1.8mm 1.8mm; display: flex; flex-direction: column; gap: 0.8mm;
   overflow: hidden; min-height: 0; background: #fff;
   contain: size layout paint; break-inside: avoid;
 }
@@ -249,24 +250,24 @@ body.tool-eraser .shape:hover { opacity: .35; }
   font-size: 6.3pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
 }
 .pcoef.hi { color: #fff; background: var(--accent); padding: 0.5mm 1.4mm; border-radius: 1mm; }
-.pbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.3mm; }
-.psvg { flex: 0 1 var(--dh, 30mm); min-width: 0; min-height: 22mm; }
+.pbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1mm; }
+.psvg { flex: 0 1 var(--dh, 36mm); min-width: 0; min-height: 22mm; }
 .psvg svg { width: 100%; height: 100%; display: block; }
-.ptext { flex: 1 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 1.3mm; }
+.ptext { flex: 1 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 1mm; }
 .ptext > .pnote { margin-top: auto; }
 /* Paysage : carrière verticale à gauche, texte à droite */
 #print-root:not(.portrait) .pcell:not(.phoriz) .pbody { flex-direction: row; gap: 2.5mm; }
-#print-root:not(.portrait) .pcell:not(.phoriz) .psvg { flex: none; width: 34%; height: 100%; }
+#print-root:not(.portrait) .pcell:not(.phoriz) .psvg { flex: none; width: 40%; height: 100%; }
 #print-root:not(.portrait) .pcell:not(.phoriz) .ptext { flex: 1 1 0; min-height: 0; }
 .pdesc {
-  font-size: 7pt; line-height: 1.28; flex: none;
+  font-size: 5.6pt; line-height: 1.25; flex: none;
   display: grid; grid-template-columns: minmax(var(--split, 18%), max-content) 1fr; gap: 0.35mm 1.6mm;
 }
 .pk { font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
 .pnote {
   flex: none;
   border-top: 0.2mm solid #e4ddd2; padding-top: 1.1mm;
-  font-size: 6.2pt; font-style: italic; line-height: 1.3; color: #4f4840;
+  font-size: 5pt; font-style: italic; line-height: 1.25; color: #4f4840;
 }
 
 .plegend { justify-content: flex-start; }
@@ -343,10 +344,10 @@ body.tool-eraser .shape:hover { opacity: .35; }
 /* Orientation portrait : 4 colonnes × 4 rangées */
 #print-root.portrait .ppage { width: 196mm; height: 283mm; }
 #print-root.portrait .pgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr)); gap: 2mm; }
-#print-root.portrait { --dh: 50mm; }
-#print-root.portrait.rows4 { --dh: 31mm; }
-#print-root.portrait .pdesc { font-size: 6.6pt; }
-#print-root.portrait .pnote { font-size: 5.9pt; }
+#print-root.portrait { --dh: 64mm; }
+#print-root.portrait.rows4 { --dh: 44mm; }
+#print-root.portrait .pdesc { font-size: 5.4pt; }
+#print-root.portrait .pnote { font-size: 4.8pt; }
 #print-root.portrait.exporting { width: 196mm; }
 
 #page-orient {
