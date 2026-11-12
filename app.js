@@ -85,7 +85,10 @@
   ];
   const UNROTATED = ['halt', 'cone', 'simple', 'une_main'];
   const GEAR = ['cone', 'barre', 'croisillon'];   // section « Matériel »
-  const BLACK_SYMBOLS = ['halt', 'cone', 'barre', 'croisillon'];
+  const BLACK_SYMBOLS = ['halt', 'transition', 'cone', 'barre', 'croisillon'];
+  // figures de rotation : plus grandes sur la carrière (pas dans le panneau)
+  const BIG_SYMBOLS = ['pirouette_g', 'pirouette_d', 'pirouette', 'dt_hanches', 'dt_epaules', 'qt_hanches', 'qt_epaules'];
+  const symScale = k => r2(1.35 * K() * (BIG_SYMBOLS.includes(k) ? 1.35 : 1));
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
   // Ordre et noms du panneau ; wall = trait beige de la paroi sur l'icône (jamais sur le dessin)
@@ -373,11 +376,11 @@
         return ln('M0,0H-9', color) + dot(2.5, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 180, 270, color);
       // repère écran vu de dessus : cheval tourné vers +x, sa gauche est vers -y
       case 'pirouette_g':
-        return '<g transform="scale(1.3)">' + ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, 25, -285, color) + '</g>';
+        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, 25, -285, color);
       case 'pirouette_d':
-        return '<g transform="scale(1.3)">' + ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -25, 285, color) + '</g>';
+        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -25, 285, color);
       case 'pirouette':   // ancien symbole (fichiers déjà enregistrés)
-        return '<g transform="scale(1.3)">' + ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true) + '</g>';
+        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true);
       case 'simple':   // couleur fixe (cyan), comme sur les fiches
         return `<circle r="8" fill="#26c6da" stroke="#fff" stroke-width="1.5"/>`;
       case 'une_main':   // petite main (paume + doigts + pouce)
@@ -850,8 +853,8 @@
       case 'sym': {
         const q = g.to(sh);
         const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
-        vis = `<g transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${r2(1.35 * K())})">${glyph(sh.k, scol)}</g>`;
-        hit = `<circle class="hit-fill" cx="${q.x}" cy="${q.y}" r="${r2(18 * K())}"/>`;
+        vis = `<g transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${symScale(sh.k)})">${glyph(sh.k, scol)}</g>`;
+        hit = `<circle class="hit-fill" cx="${q.x}" cy="${q.y}" r="${r2(18 * symScale(sh.k) / 1.35)}"/>`;
         break;
       }
       default: return '';
@@ -925,7 +928,7 @@
     if (drag.tool === 'sym') {
       const sh = { k: drag.k, x: drag.a.x, y: drag.a.y, a: symAngle(drag) }, q = g.to(sh);
       const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
-      s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${r2(1.35 * K())})">${glyph(sh.k, scol)}</g>`;
+      s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${symScale(sh.k)})">${glyph(sh.k, scol)}</g>`;
     } else if (drag.tool === 'free') {
       s = `<path d="${polyPath(drag.pts.map(g.to))}" ${st}/>`;
     } else if (drag.tool === 'line') {
