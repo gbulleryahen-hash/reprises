@@ -14,6 +14,17 @@
  * Ainsi on peut changer l'orientation sans perdre le dessin.
  */
 (() => {
+  // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
+  // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
+  const APP_V = '2026111240';
+  if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
+  window.APP_LOADED = APP_V;
+  (function checkCss() {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--css-v').replace(/["'\s]/g, '');
+    if (v === APP_V) return;
+    const link = document.querySelector('link[href^="style.css"]');
+    if (link) link.href = 'style.css?v=' + APP_V + '&r=' + Date.now();
+  })();
   // ---------------------------------------------------------------- Constantes
   const S = 10;          // unités SVG par mètre
   const PAD = 1;         // écart (m) entre la piste (points d'accroche) et le bord dessiné
@@ -812,7 +823,7 @@
       return { x: sg.a.x + (sg.b.x - sg.a.x) * t, y: sg.a.y + (sg.b.y - sg.a.y) * t,
         tx: (sg.b.x - sg.a.x) / sg.len, ty: (sg.b.y - sg.a.y) / sg.len };
     };
-    const u = 6.5 * gait.f * sc, A = (4 + gait.w * 1.4) * sc, W = (2.2 + gait.w * 0.9) * sc;
+    let u = 6.5 * gait.f * sc; const A = (4 + gait.w * 1.4) * sc, W = (2.2 + gait.w * 0.9) * sc;
     let S = '', F = '';
     const dot = d => {   // un peu plus gros que la moitié du trait : à l'œil, il paraît de même largeur
       const p = at(d), r = sw * 0.62;
@@ -839,7 +850,7 @@
       const ax = p.x - p.tx * erx, ay = p.y - p.ty * erx, bx = p.x + p.tx * erx, by = p.y + p.ty * erx;
       F += `M${r2(ax)},${r2(ay)}A${r2(erx)},${r2(ery)} ${ang} 1 0 ${r2(bx)},${r2(by)}A${r2(erx)},${r2(ery)} ${ang} 1 0 ${r2(ax)},${r2(ay)}Z`;
     };
-    const K = {
+    const MK = u => ({
       pas:     { len: 3.9 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dot(s0 + 2 * u); dot(s0 + 3 * u); arrow(s0 + 3.9 * u); } },
       trot:    { len: 4.8 * u + A, draw: s0 => { dash(s0, s0 + 1.6 * u); dash(s0 + 2.4 * u, s0 + 4 * u); arrow(s0 + 4.8 * u); } },
       galopD:  { len: 4.3 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dash(s0 + 2 * u, s0 + 3.5 * u); arrow(s0 + 4.3 * u, 'R'); } },
@@ -847,16 +858,27 @@
       passage: { len: 4.6 * u + A, draw: s0 => { wave(s0, s0 + 3.8 * u, (1.8 + gait.w * 0.5) * sc); arrow(s0 + 4.6 * u); } },
       piaffer: { len: 2 * erx, draw: s0 => ellipse(s0 + erx) },
       reculer: { len: 2 * A + 2.4 * u, draw: s0 => { arrow(s0 + A, null, true); dash(s0 + A, s0 + A + 2.4 * u); arrow(s0 + A + 2.4 * u); } },
-    }[gait.kind] || null;
+    })[gait.kind] || null;
+    // coefficient de u dans la longueur du motif (len = a·u + b) : sert à étirer légèrement les motifs
+    const A_U = { pas: 3.9, trot: 4.8, galopD: 4.3, galopG: 4.3, passage: 4.6, reculer: 2.4 }[gait.kind] || 0;
+    const u0 = u;
+    let K = MK(u);
     if (!K) return { s: '', f: '', w: sw, c: gait.color };
-    const gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
+    let gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
     if (slot > 0 && gait.kind !== 'piaffer') {
       // motif, place libre, motif, place libre… en alternance
       // motif, symbole, motif, symbole… motif : le premier motif part du début du tracé,
       // la dernière flèche arrive pile à la fin ; l'espace restant est réparti également.
-      const gs0 = gap * 0.35;                     // symbole tout près des flèches
+      let gs0 = gap * 0.35;                       // symbole tout près des flèches
       const unit = K.len + slot + 2 * gs0;
       let count = Math.max(2, Math.round((L + slot + 2 * gs0) / unit));
+      // les motifs s'étirent ou se resserrent un peu pour combler l'espace au lieu de laisser des trous
+      if (A_U && count > 1) {
+        const n = count, base = K.len - A_U * u0;
+        const u2 = (L - n * base - (n - 1) * (slot + 0.7 * 2 * sc)) / (n * A_U + (n - 1) * 0.7 * 1.3);
+        u = Math.max(0.75 * u0, Math.min(1.35 * u0, u2));
+        K = MK(u); gs0 = 0.35 * (1.3 * u + 2 * sc);
+      }
       let gs = 0;
       while (count > 1) {
         gs = (L - count * K.len - (count - 1) * slot) / (2 * (count - 1));
@@ -880,6 +902,12 @@
     if (gait.kind === 'piaffer') single = true;   // le piaffer est sur place : une seule ellipse
     // le premier motif part du début, la dernière flèche arrive à la fin ; écarts répartis également
     let count = single ? 1 : Math.max(1, Math.round((L + gap) / (K.len + gap)));
+    if (A_U && count > 1) {   // étirement léger des motifs pour que les écarts restent réguliers et serrés
+      const base = K.len - A_U * u0;
+      const u2 = (L - count * base - (count - 1) * 2 * sc) / (count * A_U + (count - 1) * 1.3);
+      u = Math.max(0.75 * u0, Math.min(1.35 * u0, u2));
+      K = MK(u); gap = 1.3 * u + 2 * sc;
+    }
     let g2 = gap;
     while (count > 1) { g2 = (L - count * K.len) / (count - 1); if (g2 >= gap * 0.5) break; count--; }
     if (count === 1) K.draw(Math.max(0, (L - K.len) / 2));
