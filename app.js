@@ -852,24 +852,38 @@
     const gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
     if (slot > 0 && gait.kind !== 'piaffer') {
       // motif, place libre, motif, place libre… en alternance
-      const gs = gap * 0.35;                      // symbole tout près des flèches
-      const unit = K.len + slot + 2 * gs;
-      const count = Math.max(1, Math.floor((L + 2 * gs) / unit));
-      let st = Math.max(0, (L - (count * unit - 2 * gs)) / 2);
-      const slots = [];
-      for (let i = 0; i < count; i++) {
-        K.draw(st);
-        const c = st + K.len + gs + slot / 2;
-        if (c < L - slot / 4) slots.push(c);
-        st += unit;
+      // motif, symbole, motif, symbole… motif : le premier motif part du début du tracé,
+      // la dernière flèche arrive pile à la fin ; l'espace restant est réparti également.
+      const gs0 = gap * 0.35;                     // symbole tout près des flèches
+      const unit = K.len + slot + 2 * gs0;
+      let count = Math.max(2, Math.round((L + slot + 2 * gs0) / unit));
+      let gs = 0;
+      while (count > 1) {
+        gs = (L - count * K.len - (count - 1) * slot) / (2 * (count - 1));
+        if (gs >= gs0 * 0.4) break;
+        count--;
       }
-      if (!slots.length) slots.push(L / 2);
+      const slots = [];
+      if (count <= 1) {                           // tracé très court : un motif puis le symbole
+        K.draw(0);
+        slots.push(Math.min(L - slot / 2, K.len + gs0 + slot / 2));
+      } else {
+        let st = 0;
+        for (let i = 0; i < count; i++) {
+          K.draw(st);
+          if (i < count - 1) slots.push(st + K.len + gs + slot / 2);
+          st += K.len + 2 * gs + slot;
+        }
+      }
       return { s: S, f: F, w: sw, c: gait.color, slots };
     }
     if (gait.kind === 'piaffer') single = true;   // le piaffer est sur place : une seule ellipse
-    const count = single ? 1 : Math.max(1, Math.floor((L - 2 + gap) / (K.len + gap)));
-    let st = Math.max(0, (L - (count * (K.len + gap) - gap)) / 2);
-    for (let i = 0; i < count; i++) { K.draw(st); st += K.len + gap; }
+    // le premier motif part du début, la dernière flèche arrive à la fin ; écarts répartis également
+    let count = single ? 1 : Math.max(1, Math.round((L + gap) / (K.len + gap)));
+    let g2 = gap;
+    while (count > 1) { g2 = (L - count * K.len) / (count - 1); if (g2 >= gap * 0.5) break; count--; }
+    if (count === 1) K.draw(Math.max(0, (L - K.len) / 2));
+    else { let st = 0; for (let i = 0; i < count; i++) { K.draw(st); st += K.len + g2; } }
     return { s: S, f: F, w: sw, c: gait.color };
   }
   const MOTIF_SC = 1.25;   // taille des motifs dans les vignettes (multipliée par le curseur)
