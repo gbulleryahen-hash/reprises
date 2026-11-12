@@ -642,7 +642,9 @@
   // Le long d'une polyligne (unités écran) : pas = 4 points + flèche ; trot = 2 tirets + flèche ;
   // galop = 2 points + 1 tiret + demi-flèche (côté droit ou gauche) ; passage = vague + flèche ;
   // piaffer = ellipses ; reculer = doubles flèches. single : un seul motif, centré (icônes).
-  function gaitMotif(poly, gait, sc, single) {
+  // slot > 0 : laisse après chaque motif une place libre (pour le symbole d'un déplacement latéral)
+  // et renvoie les distances de ces places dans « slots ».
+  function gaitMotif(poly, gait, sc, single, slot) {
     const segs = []; let L = 0;
     for (let i = 0; i < poly.length - 1; i++) {
       const a = poly[i], b = poly[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -696,6 +698,21 @@
     }[gait.kind] || null;
     if (!K) return { s: '', f: '', w: sw, c: gait.color };
     const gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
+    if (slot > 0) {
+      // motif, place libre, motif, place libre… en alternance
+      const unit = K.len + slot + 2 * gap;
+      const count = Math.max(1, Math.floor((L + 2 * gap) / unit));
+      let st = Math.max(0, (L - (count * unit - 2 * gap)) / 2);
+      const slots = [];
+      for (let i = 0; i < count; i++) {
+        K.draw(st);
+        const c = st + K.len + gap + slot / 2;
+        if (c < L - slot / 4) slots.push(c);
+        st += unit;
+      }
+      if (!slots.length) slots.push(L / 2);
+      return { s: S, f: F, w: sw, c: gait.color, slots };
+    }
     const count = single ? 1 : Math.max(1, Math.floor((L - 2 + gap) / (K.len + gap)));
     let st = Math.max(0, (L - (count * (K.len + gap) - gap)) / 2);
     for (let i = 0; i < count; i++) { K.draw(st); st += K.len + gap; }
@@ -720,7 +737,7 @@
   }
 
   // Décorations automatiques selon le type de déplacement
-  function decorations(sh, g, col) {
+  function decorations(sh, g, col, slots) {
     // « droit » : rien à ajouter, les flèches font partie du motif de l'allure
     const move = MOVE_IDS.includes(sh.m) ? sh.m : 'droit';
     if (move === 'droit') return '';
@@ -732,7 +749,7 @@
     // orienté selon le sens de la marche et le côté intérieur.
     const step = 72 * K();
     const n = Math.max(1, Math.round(len / step));
-    const ds = Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
+    const ds = slots && slots.length ? slots : Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
     // côté « intérieur » : centre du cercle, sinon centre de la carrière
     const ref = closed ? g.to(sh.c) : g.to({ x: g.w / 2, y: g.L / 2 });
     // axe des grands côtés à l'écran (pour cession / appuyer : le cheval reste parallèle au grand côté)
@@ -765,12 +782,13 @@
     return Math.atan2(q1.y - q0.y, q1.x - q0.x) * 180 / Math.PI;
   }
 
+  let lastSlots = null;   // places libres laissées par le dernier motif dessiné
   function shapeSvg(sh, g, i) {
     const vis = shapeVisual(sh, g, i);
     if (!vis || sh.t === 'sym') return vis;
     const col = shapeGait(sh).color;
     // les décorations s'insèrent juste avant la zone de clic (fin du groupe)
-    return vis.replace(/<\/g>$/, `<g class="deco">${decorations(sh, g, col)}</g></g>`);
+    return vis.replace(/<\/g>$/, `<g class="deco">${decorations(sh, g, col, lastSlots)}</g></g>`);
   }
 
   function shapeVisual(sh, g, i) {
@@ -779,7 +797,10 @@
     switch (sh.t) {
       case 'line': case 'free': case 'arc': case 'circle': {
         const poly = screenPolyline(sh, g);
-        const m = gaitMotif(poly, gait, MOTIF_SC * K());
+        // déplacement latéral : on alterne motif et symbole au lieu de les superposer
+        const lateral = MOVE_IDS.includes(sh.m) && sh.m !== 'droit';
+        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? 34 * K() : 0);
+        lastSlots = m.slots || null;
         vis = `<path d="${m.s}" fill="none" stroke="${m.c}" stroke-width="${m.w}" stroke-linecap="round" stroke-linejoin="round"/>` +
           `<path d="${m.f}" fill="${m.c}"/>`;
         hit = `<path class="hit" d="${polyPath(poly)}"/>`;
