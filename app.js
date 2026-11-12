@@ -70,6 +70,7 @@
   // Figures ponctuelles : clic pour poser, cliquer-glisser pour orienter
   const SYMBOLS = [
     { id: 'halt',        label: 'Arrêt' },
+    { id: 'transition',  label: 'Transition' },
     { id: 'dt_hanches',  label: 'Demi-tour sur les hanches' },
     { id: 'dt_epaules',  label: 'Demi-tour sur les épaules' },
     { id: 'qt_hanches',  label: 'Quart de tour sur les hanches' },
@@ -177,9 +178,14 @@
       if (d < bd) { bd = d; best = s; }
     }
     if (best) return { x: best.x, y: best.y, n: best.n };
-    // sinon : accroche n'importe où le long des deux lignes du quart
+    // sinon : accroche n'importe où le long des lignes (piste des grands côtés, quarts, ligne du milieu)…
+    const w = arenaW(c.size);
     if (p.y >= 0 && p.y <= c.size) {
-      for (const qx of quarterXs(c.size)) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'quart' };
+      for (const qx of [0, w / 4, w / 2, w * 3 / 4, w]) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'ligne' };
+    }
+    // … et des petits côtés (A et C)
+    if (p.x >= 0 && p.x <= w) {
+      for (const qy of [0, c.size]) if (Math.abs(p.y - qy) < 0.6) return { x: p.x, y: qy, n: 'ligne' };
     }
     return { x: p.x, y: p.y };
   }
@@ -367,11 +373,11 @@
         return ln('M0,0H-9', color) + dot(2.5, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(11, 180, 270, color);
       // repère écran vu de dessus : cheval tourné vers +x, sa gauche est vers -y
       case 'pirouette_g':
-        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, 25, -285, color);
+        return '<g transform="scale(1.3)">' + ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, 25, -285, color) + '</g>';
       case 'pirouette_d':
-        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -25, 285, color);
+        return '<g transform="scale(1.3)">' + ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -25, 285, color) + '</g>';
       case 'pirouette':   // ancien symbole (fichiers déjà enregistrés)
-        return ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true);
+        return '<g transform="scale(1.3)">' + ln('M0,0H7', color) + dot(8, 0, color, 2) + dot(0, 0, '#222', 2.6) + arcArrow(12, -140, 140, color, true) + '</g>';
       case 'simple':   // couleur fixe (cyan), comme sur les fiches
         return `<circle r="8" fill="#26c6da" stroke="#fff" stroke-width="1.5"/>`;
       case 'une_main':   // petite main (paume + doigts + pouce)
@@ -382,6 +388,8 @@
           `<rect x="3.9" y="-11" width="3.1" height="10" rx="1.55"/>` +
           `<rect x="-6.8" y="-3.5" width="14" height="13" rx="4.5"/>` +
           `</g><path d="M-5,4.5L-10.5,-1.5" stroke="${color}" stroke-width="3.3" stroke-linecap="round" fill="none"/>`;
+      case 'transition':   // barre en travers du tracé + petite flèche : changement d'allure
+        return ln('M-3,-10V10', color, 3.4) + `<path d="M2,-4.5L9,0L2,4.5Z" fill="${color}"/>`;
       case 'piaffer':    // piaffer posé sur place : une ellipse
         return `<ellipse rx="13" ry="4.6" fill="${color}"/>`;
       case 'cone':
@@ -482,13 +490,44 @@
     for (const c of state.cases) {
       const g = geom(c.size, c.orient);
       for (const sh of c.shapes) {
-        if (sh.t === 'sym') continue;
+        if (sh.t === 'sym' || shapeGait(sh).kind === 'piaffer') continue;   // le piaffer est sur place
         m += sh.t === 'circle' ? 2 * Math.PI * sh.r : polyLength(screenPolyline(sh, g)) / S;
       }
     }
     return Math.round(m);
   }
-  const totalText = () => `(${totalLength().toLocaleString('fr-FR')} m)`;
+  // Temps estimé : vitesses moyennes approximatives (m/s) et durées des figures (s).
+  // Ce sont des ordres de grandeur, à ajuster selon le cheval et le niveau.
+  const SPEED = {
+    pas:  { ras: 1.4, trav: 1.6, moy: 1.7, all: 2.0 },
+    trot: { ras: 2.9, trav: 3.4, moy: 3.9, all: 4.5 },
+    galop: { ras: 4.2, trav: 5.0, moy: 5.8, all: 6.5 },
+    passage: 1.5, reculer: 0.7,
+  };
+  const SYM_TIME = { halt: 6, piaffer: 10, pirouette_g: 6, pirouette_d: 6, pirouette: 6,
+    dt_hanches: 4, dt_epaules: 4, qt_hanches: 2, qt_epaules: 2, simple: 4 };
+  function speedOf(gait) {
+    if (gait.kind === 'passage' || gait.kind === 'reculer') return SPEED[gait.kind];
+    if (gait.kind === 'piaffer') return 0;
+    const k = gait.kind.startsWith('galop') ? 'galop' : gait.kind;
+    return (SPEED[k] || SPEED.trot)[gait.lv] || 3.4;
+  }
+  function totalTime() {
+    let t = 0;
+    for (const c of state.cases) {
+      const g = geom(c.size, c.orient);
+      for (const sh of c.shapes) {
+        if (sh.t === 'sym') { t += SYM_TIME[sh.k] || 0; continue; }
+        const gait = shapeGait(sh), v = speedOf(gait);
+        if (gait.kind === 'piaffer') { t += SYM_TIME.piaffer; continue; }
+        const m = sh.t === 'circle' ? 2 * Math.PI * sh.r : polyLength(screenPolyline(sh, g)) / S;
+        if (v > 0) t += m / v;
+      }
+    }
+    return Math.round(t);
+  }
+  const fmtTime = t => (t >= 60 ? `${Math.floor(t / 60)} min ${String(t % 60).padStart(2, '0')} s` : `${t} s`);
+  const totalText = () => `(${totalLength().toLocaleString('fr-FR')} m · ≈ ${fmtTime(totalTime())})`;
   function updateTotal() {
     const el = document.getElementById('total-len');
     if (el) el.textContent = totalText();
@@ -698,21 +737,23 @@
     }[gait.kind] || null;
     if (!K) return { s: '', f: '', w: sw, c: gait.color };
     const gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
-    if (slot > 0) {
+    if (slot > 0 && gait.kind !== 'piaffer') {
       // motif, place libre, motif, place libre… en alternance
-      const unit = K.len + slot + 2 * gap;
-      const count = Math.max(1, Math.floor((L + 2 * gap) / unit));
-      let st = Math.max(0, (L - (count * unit - 2 * gap)) / 2);
+      const gs = gap * 0.35;                      // symbole tout près des flèches
+      const unit = K.len + slot + 2 * gs;
+      const count = Math.max(1, Math.floor((L + 2 * gs) / unit));
+      let st = Math.max(0, (L - (count * unit - 2 * gs)) / 2);
       const slots = [];
       for (let i = 0; i < count; i++) {
         K.draw(st);
-        const c = st + K.len + gap + slot / 2;
+        const c = st + K.len + gs + slot / 2;
         if (c < L - slot / 4) slots.push(c);
         st += unit;
       }
       if (!slots.length) slots.push(L / 2);
       return { s: S, f: F, w: sw, c: gait.color, slots };
     }
+    if (gait.kind === 'piaffer') single = true;   // le piaffer est sur place : une seule ellipse
     const count = single ? 1 : Math.max(1, Math.floor((L - 2 + gap) / (K.len + gap)));
     let st = Math.max(0, (L - (count * (K.len + gap) - gap)) / 2);
     for (let i = 0; i < count; i++) { K.draw(st); st += K.len + gap; }
@@ -799,7 +840,7 @@
         const poly = screenPolyline(sh, g);
         // déplacement latéral : on alterne motif et symbole au lieu de les superposer
         const lateral = MOVE_IDS.includes(sh.m) && sh.m !== 'droit';
-        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? 34 * K() : 0);
+        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? 30 * K() : 0);
         lastSlots = m.slots || null;
         vis = `<path d="${m.s}" fill="none" stroke="${m.c}" stroke-width="${m.w}" stroke-linecap="round" stroke-linejoin="round"/>` +
           `<path d="${m.f}" fill="${m.c}"/>`;
@@ -825,10 +866,49 @@
     r.shapes.innerHTML = c.shapes.map((sh, i) => shapeSvg(sh, g, i)).join('');
   }
 
+  // ---------------------------------------------------------------- Zoom (molette, ×3 max) et déplacement de la vue
+  function applyView(c) {
+    const r = refs.get(c.id), g = geom(c.size, c.orient);
+    const v = r.view || (r.view = { k: 1, x: 0, y: 0 });
+    const w = g.W / v.k, h = g.H / v.k;
+    v.x = Math.max(0, Math.min(g.W - w, v.x));
+    v.y = Math.max(0, Math.min(g.H - h, v.y));
+    r.svg.setAttribute('viewBox', `${r2(v.x)} ${r2(v.y)} ${r2(w)} ${r2(h)}`);
+    r.svg.dataset.full = `0 0 ${g.W} ${g.H}`;
+    r.el.classList.toggle('zoomed', v.k > 1.01);
+  }
+  function onWheel(e, c) {
+    const r = refs.get(c.id), g = geom(c.size, c.orient);
+    const v = r.view || (r.view = { k: 1, x: 0, y: 0 });
+    const k2 = Math.max(1, Math.min(3, v.k * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    if (k2 === v.k) return;            // déjà au minimum ou au maximum : la page défile normalement
+    e.preventDefault();
+    const q = svgPoint(r.svg, e);      // point sous la souris : il reste en place
+    const w1 = g.W / v.k, w2 = g.W / k2, h1 = g.H / v.k, h2 = g.H / k2;
+    v.x = q.x - (q.x - v.x) * (w2 / w1);
+    v.y = q.y - (q.y - v.y) * (h2 / h1);
+    v.k = k2;
+    applyView(c);
+  }
+  function startPan(e, c) {
+    const r = refs.get(c.id), g = geom(c.size, c.orient);
+    const v = r.view || (r.view = { k: 1, x: 0, y: 0 });
+    e.preventDefault();
+    r.svg.setPointerCapture(e.pointerId);
+    const box = r.svg.getBoundingClientRect();
+    const sx = (g.W / v.k) / box.width, sy = (g.H / v.k) / box.height, s0 = Math.max(sx, sy);
+    const x0 = e.clientX, y0 = e.clientY, vx = v.x, vy = v.y;
+    const move = ev => { v.x = vx - (ev.clientX - x0) * s0; v.y = vy - (ev.clientY - y0) * s0; applyView(c); };
+    const up = () => { r.svg.removeEventListener('pointermove', move); r.svg.removeEventListener('pointerup', up); };
+    r.svg.addEventListener('pointermove', move);
+    r.svg.addEventListener('pointerup', up);
+  }
+
   function renderCase(c) {
     const r = refs.get(c.id);
     const g = geom(c.size, c.orient);
     r.svg.setAttribute('viewBox', `0 0 ${g.W} ${g.H}`);
+    applyView(c);
     r.base.innerHTML = arenaSvg(c, g);
     renderShapes(c);
     r.preview.innerHTML = '';
@@ -920,6 +1000,8 @@
   }
 
   function onDown(e, c) {
+    if (e.button === 2) { cancelDrag(); e.preventDefault(); return; }   // clic droit : annule le tracé en cours
+    if (e.button === 1) { startPan(e, c); return; }                     // molette maintenue : déplacer la vue
     if (e.button !== 0) return;
     lastCaseId = c.id;
     const r = refs.get(c.id);
@@ -934,10 +1016,13 @@
       if (t) { const i = +t.dataset.i; mutate(c, () => c.shapes.splice(i, 1)); }
       return;
     }
-    if (tool.startsWith('sym:')) {
+    // piaffer : c'est sur place → un clic pose l'ellipse (cliquer-glisser l'oriente), quel que soit l'outil de tracé
+    const piafferPoint = gaitOf(ui.gait).kind === 'piaffer' && !tool.startsWith('sym:');
+    if (tool.startsWith('sym:') || piafferPoint) {
       // clic = pose ; cliquer-glisser = orienter la figure
+      if (drag) cancelDrag();
       r.svg.setPointerCapture(e.pointerId);
-      drag = { caseId: c.id, tool: 'sym', k: tool.slice(4), a: pt(p.x, p.y), b: pt(p.x, p.y), raw };
+      drag = { caseId: c.id, tool: 'sym', k: piafferPoint ? 'piaffer' : tool.slice(4), a: pt(p.x, p.y), b: pt(p.x, p.y), raw };
       drawPreview(c);
       e.preventDefault();
       return;
@@ -1009,7 +1094,7 @@
       const pts = processFree(d.pts, c);
       if (pts.length >= 2) sh = { t: 'free', g: ui.gait, m: ui.move, p: pts };
     } else if (d.tool === 'sym') {
-      sh = { t: 'sym', k: d.k, g: ui.gait, x: d.a.x, y: d.a.y, a: symAngle(d) };
+      sh = { t: 'sym', k: d.k, g: d.k === 'piaffer' ? 'piaffer' : ui.gait, x: d.a.x, y: d.a.y, a: symAngle(d) };
     } else if (d.tool === 'circle') {
       // 2e temps : le sens de rotation suit la souris, un clic valide
       d.r = ui.diam / 2;
@@ -1153,6 +1238,10 @@
     svg.addEventListener('pointerup', e => onUp(e, c));
     svg.addEventListener('pointercancel', () => cancelDrag());
     svg.addEventListener('pointerleave', () => { r.snapind.style.display = 'none'; });
+    svg.addEventListener('wheel', e => onWheel(e, c), { passive: false });
+    svg.addEventListener('contextmenu', e => e.preventDefault());
+    svg.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+    svg.addEventListener('dblclick', e => { if (e.button === 1) { r.view = { k: 1, x: 0, y: 0 }; applyView(c); } });
 
     renderCase(c);
     return art;
@@ -1266,8 +1355,8 @@
     $('#diam-group').style.display = (ui.tool === 'circle' || ui.tool === 'arc') ? '' : 'none';
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
-    $('#hint').textContent = gaitOf(ui.gait).kind === 'piaffer' && t && (t.id === 'line')
-      ? 'Piaffer : double-cliquez sur un point pour le poser sur place, ou tracez une ligne pour un piaffer qui avance.'
+    $('#hint').textContent = gaitOf(ui.gait).kind === 'piaffer' && t && t.id !== 'eraser'
+      ? 'Piaffer (sur place) : cliquez pour poser l’ellipse, ou cliquez-glissez dans la direction du cheval pour l’orienter.'
       : t ? t.hint
       : 'Cliquez pour poser la figure (elle s’accroche aux lettres), ou cliquez-glissez dans la direction du cheval pour l’orienter.';
   }
@@ -1320,6 +1409,7 @@
   };
   function standaloneSvg(src) {
     const svg = src.cloneNode(true);
+    if (src.dataset.full) svg.setAttribute('viewBox', src.dataset.full);   // impression : carrière entière, sans zoom
     svg.querySelectorAll('.preview, .snapind, .hit, .hit-fill').forEach(n => n.remove());
     svg.removeAttribute('style');
     for (const [cls, st] of Object.entries(PRINT_STYLES)) {
