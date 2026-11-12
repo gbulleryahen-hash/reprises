@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111240';
+  const APP_V = '2026111241';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -838,8 +838,9 @@
       }
     };
     const arrow = (d0, half, back) => {
-      const b = at(d0), k = back ? -1 : 1, tx = b.tx * k, ty = b.ty * k, w = half ? W * 1.35 : W;
-      const tip = { x: b.x + tx * A, y: b.y + ty * A }, rx = -ty, ry = tx;   // (rx, ry) : côté droit du cheval
+      // demi-flèche du galop plus large et plus longue : à l'œil, elle pèse autant qu'une flèche entière
+      const b = at(d0), k = back ? -1 : 1, tx = b.tx * k, ty = b.ty * k, w = half ? W * 1.75 : W, al = half ? A * 1.25 : A;
+      const tip = { x: b.x + tx * al, y: b.y + ty * al }, rx = -ty, ry = tx;   // (rx, ry) : côté droit du cheval
       const p1 = { x: b.x + rx * w, y: b.y + ry * w }, p2 = { x: b.x - rx * w, y: b.y - ry * w };
       const pts = half === 'R' ? [tip, p1, b] : half === 'L' ? [tip, b, p2] : [tip, p1, p2];
       F += 'M' + pts.map(q => `${r2(q.x)},${r2(q.y)}`).join('L') + 'Z';
@@ -853,14 +854,14 @@
     const MK = u => ({
       pas:     { len: 3.9 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dot(s0 + 2 * u); dot(s0 + 3 * u); arrow(s0 + 3.9 * u); } },
       trot:    { len: 4.8 * u + A, draw: s0 => { dash(s0, s0 + 1.6 * u); dash(s0 + 2.4 * u, s0 + 4 * u); arrow(s0 + 4.8 * u); } },
-      galopD:  { len: 4.3 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dash(s0 + 2 * u, s0 + 3.5 * u); arrow(s0 + 4.3 * u, 'R'); } },
-      galopG:  { len: 4.3 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dash(s0 + 2 * u, s0 + 3.5 * u); arrow(s0 + 4.3 * u, 'L'); } },
+      galopD:  { len: 4.6 * u + 1.25 * A, draw: s0 => { dot(s0); dot(s0 + 1.05 * u); dash(s0 + 2.05 * u, s0 + 4.6 * u); arrow(s0 + 4.6 * u, 'R'); } },
+      galopG:  { len: 4.6 * u + 1.25 * A, draw: s0 => { dot(s0); dot(s0 + 1.05 * u); dash(s0 + 2.05 * u, s0 + 4.6 * u); arrow(s0 + 4.6 * u, 'L'); } },
       passage: { len: 4.6 * u + A, draw: s0 => { wave(s0, s0 + 3.8 * u, (1.8 + gait.w * 0.5) * sc); arrow(s0 + 4.6 * u); } },
       piaffer: { len: 2 * erx, draw: s0 => ellipse(s0 + erx) },
       reculer: { len: 2 * A + 2.4 * u, draw: s0 => { arrow(s0 + A, null, true); dash(s0 + A, s0 + A + 2.4 * u); arrow(s0 + A + 2.4 * u); } },
     })[gait.kind] || null;
     // coefficient de u dans la longueur du motif (len = a·u + b) : sert à étirer légèrement les motifs
-    const A_U = { pas: 3.9, trot: 4.8, galopD: 4.3, galopG: 4.3, passage: 4.6, reculer: 2.4 }[gait.kind] || 0;
+    const A_U = { pas: 3.9, trot: 4.8, galopD: 4.6, galopG: 4.6, passage: 4.6, reculer: 2.4 }[gait.kind] || 0;
     const u0 = u;
     let K = MK(u);
     if (!K) return { s: '', f: '', w: sw, c: gait.color };
