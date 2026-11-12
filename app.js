@@ -415,22 +415,56 @@
 
   // Symboles des déplacements. Repère local : +x = sens de la marche, +y = côté intérieur.
   // Les « crochets » représentent le cheval vu de dessus : trait = corps, point = tête.
+  const MOVE_GEOM = {
+    droit:     { d: 'M-5,-5.5L3,0L-5,5.5', w: 3 },
+    shoulder:  { d: 'M-8,0L2,3.5Q5,5 5.5,8.5', dots: [[5.5, 9]] },
+    ea:        { d: 'M-9,0H5', dots: [[7.5, 3.6]] },
+    ced:       { d: 'M-8,0L2,-3.5Q5,-5 5.5,-8.5', dots: [[5.5, -9]] },
+    hdedans:   { d: 'M-7,7L2,0Q5,-2 8,-0.5', dots: [[8.5, -0.3]] },
+    hdehors:   { d: 'M-7,-7L2,0Q5,2 8,0.5', dots: [[8.5, 0.3]] },
+    cession:   { d: 'M-9,0H8M3,-4L8.5,0L3,4', w: 2.2 },
+    appuyer:   { d: 'M-13,0H11M5.5,-4.2L11.5,0L5.5,4.2M-9,-3.6L-4,3.6M-9,3.6L-4,-3.6', w: 2.2 },
+    pasdecote: { d: 'M-11,0H11M-2.6,-3.8L2.6,3.8M-2.6,3.8L2.6,-3.8', w: 2.2 },
+    reculer:   { d: 'M-8,0H8M-4,-3.5L-8.5,0L-4,3.5M4,-3.5L8.5,0L4,3.5', w: 2 },
+  };
   function moveGlyph(kind, color) {
-    switch (kind) {
-      case 'droit':     return ln('M-5,-5.5L3,0L-5,5.5', color, 3);
-      case 'shoulder':  return ln('M-8,-1L2,3.5Q5,5 5.5,8.5', color) + dot(5.5, 9, color);
-      case 'ea':        return ln('M-9,0H5', color) + dot(7.5, 3.6, color);
-      case 'ced':       return ln('M-8,1L2,-3.5Q5,-5 5.5,-8.5', color) + dot(5.5, -9, color);
-      case 'hdedans':   return ln('M-7,7L2,0Q5,-2 8,-0.5', color) + dot(8.5, -0.3, color);
-      case 'hdehors':   return ln('M-7,-7L2,0Q5,2 8,0.5', color) + dot(8.5, 0.3, color);
-      case 'cession':   return ln('M-9,0H8M3,-4L8.5,0L3,4', color, 2.2);
-      // flèche plus longue : la croix (sur la queue) et la pointe restent bien séparées
-      case 'appuyer':   return ln('M-13,0H11M5.5,-4.2L11.5,0L5.5,4.2M-9,-3.6L-4,3.6M-9,3.6L-4,-3.6', color, 2.2);
-      case 'pasdecote': return ln('M-11,0H11M-2.6,-3.8L2.6,3.8M-2.6,3.8L2.6,-3.8', color, 2.2);
-      case 'reculer':   return ln('M-8,0H8M-4,-3.5L-8.5,0L-4,3.5M4,-3.5L8.5,0L4,3.5', color, 2);
-    }
-    return '';
+    const G = MOVE_GEOM[kind];
+    if (!G) return '';
+    return ln(G.d, color, G.w || 2.4) + (G.dots || []).map(([x, y]) => dot(x, y, color)).join('');
   }
+  // Découpe un chemin simple (M, L, H, Q) en polylignes de points rapprochés
+  function glyphPolys(d) {
+    const polys = []; let cur = null, x = 0, y = 0;
+    const push = (nx, ny) => {   // points intermédiaires : le symbole pourra suivre une courbe
+      const n = Math.max(1, Math.ceil(Math.hypot(nx - x, ny - y) / 1.5));
+      for (let i = 1; i <= n; i++) cur.push([x + (nx - x) * i / n, y + (ny - y) * i / n]);
+      x = nx; y = ny;
+    };
+    const re = /([MLHQ])([^MLHQ]*)/g; let m;
+    while ((m = re.exec(d))) {
+      const v = m[2].trim().split(/[\s,]+/).filter(Boolean).map(Number);
+      if (m[1] === 'M') { x = v[0]; y = v[1]; cur = [[x, y]]; polys.push(cur); }
+      else if (m[1] === 'L') push(v[0], v[1]);
+      else if (m[1] === 'H') push(v[0], y);
+      else if (m[1] === 'Q') {
+        const [cx, cy, ex, ey] = v, x0 = x, y0 = y;
+        for (let i = 1; i <= 8; i++) {
+          const t = i / 8, u = 1 - t;
+          cur.push([u * u * x0 + 2 * u * t * cx + t * t * ex, u * u * y0 + 2 * u * t * cy + t * t * ey]);
+        }
+        x = ex; y = ey;
+      }
+    }
+    return polys;
+  }
+  function moveExtent(kind) {
+    const G = MOVE_GEOM[kind]; if (!G) return [0, 0];
+    const xs = glyphPolys(G.d).flat().map(q => q[0]).concat((G.dots || []).map(q => q[0]));
+    return [Math.min(...xs), Math.max(...xs)];
+  }
+  const MOVE_SC = 1.65;   // taille des symboles de déplacement sur le dessin (× curseur)
+  // longueur laissée libre dans le motif pour un symbole de déplacement
+  const lateralSlot = kind => { const [a, b] = moveExtent(kind); return ((b - a) * MOVE_SC + 6) * K(); };
 
   // ---------------------------------------------------------------- État
   const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, textL: '', textR: '', note: '', shapes: [] });
@@ -807,26 +841,47 @@
     const ds = slots && slots.length ? slots : Array.from({ length: n }, (_, i) => (i + (closed ? 0 : 0.5)) * len / n);
     // côté « intérieur » : centre du cercle, sinon centre de la carrière
     const ref = closed ? g.to(sh.c) : g.to({ x: g.w / 2, y: g.L / 2 });
-    // axe des grands côtés à l'écran (pour cession / appuyer : le cheval reste parallèle au grand côté)
-    const o = g.to({ x: 0, y: 0 }), o1 = g.to({ x: 0, y: 1 });
-    const ey = { x: (o1.x - o.x) / S, y: (o1.y - o.y) / S };
-    return pointsAlong(poly, ds).map(p => {
-      const a = p.ang * Math.PI / 180;
-      const t = { x: Math.cos(a), y: Math.sin(a) };
-      const nIn = { x: -t.y, y: t.x };
-      const side = (ref.x - p.x) * nIn.x + (ref.y - p.y) * nIn.y >= 0 ? 1 : -1;
-      let tr = `translate(${r2(p.x)},${r2(p.y)}) `;
-      if (move === 'cession' || move === 'appuyer') {
-        const k = t.x * ey.x + t.y * ey.y;
-        const dir = Math.abs(k) > 0.2 ? { x: ey.x * Math.sign(k), y: ey.y * Math.sign(k) } : t;
-        tr += `rotate(${r2(Math.atan2(dir.y, dir.x) * 180 / Math.PI)})`;
-      } else if (move === 'pasdecote') {
-        tr += `rotate(${r2(p.ang)}) scale(1,${side}) rotate(-90)`;   // tête vers l'extérieur
-      } else {
-        tr += `rotate(${r2(p.ang)}) scale(1,${side})`;
+    const tr = makeTrack(poly);
+    const sc = MOVE_SC * K();
+    const G = MOVE_GEOM[move] || MOVE_GEOM.droit;
+    const polys = glyphPolys(G.d);
+    const [x0, x1] = moveExtent(move), mid = (x0 + x1) / 2;
+    return ds.map(dc => {
+      const pc = tr.at(dc);
+      const nIn = { x: -pc.ty, y: pc.tx };
+      const side = (ref.x - pc.x) * nIn.x + (ref.y - pc.y) * nIn.y >= 0 ? 1 : -1;
+      if (move === 'pasdecote') {   // perpendiculaire au tracé, tête vers l'extérieur
+        const ang = Math.atan2(pc.ty, pc.tx) * 180 / Math.PI;
+        return `<g transform="translate(${r2(pc.x)},${r2(pc.y)}) rotate(${r2(ang)}) scale(1,${side}) rotate(-90) scale(${r2(sc)})">${moveGlyph(move, col)}</g>`;
       }
-      return `<g transform="${tr} scale(${r2(1.65 * K())})">${moveGlyph(move, col)}</g>`;
+      // chaque point du symbole est reporté le long du tracé : il part du tracé et en suit la courbe
+      const warp = (x, y) => {
+        const p = tr.at(dc + (x - mid) * sc);
+        return [p.x - p.ty * y * sc * side, p.y + p.tx * y * sc * side];
+      };
+      const d = polys.map(pl => 'M' + pl.map(([x, y]) => warp(x, y).map(r2).join(',')).join('L')).join('');
+      const dots = (G.dots || []).map(([x, y]) => { const [cx, cy] = warp(x, y); return `<circle cx="${r2(cx)}" cy="${r2(cy)}" r="${r2(2.4 * sc)}" fill="${col}"/>`; }).join('');
+      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${r2((G.w || 2.4) * sc)}" stroke-linecap="round" stroke-linejoin="round"/>` + dots;
     }).join('');
+  }
+
+  // Avancer le long d'une polyligne : position et direction à une distance donnée
+  function makeTrack(poly) {
+    const segs = []; let L = 0;
+    for (let i = 0; i < poly.length - 1; i++) {
+      const a = poly[i], b = poly[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len > 1e-6) { segs.push({ a, b, len, start: L }); L += len; }
+    }
+    const at = d => {
+      if (!segs.length) return { x: poly[0].x, y: poly[0].y, tx: 1, ty: 0 };
+      // au-delà des extrémités on prolonge en ligne droite
+      let sg = d <= 0 ? segs[0] : segs[segs.length - 1];
+      if (d > 0 && d < L) for (const x of segs) { if (d <= x.start + x.len) { sg = x; break; } }
+      const t = (d - sg.start) / sg.len;
+      return { x: sg.a.x + (sg.b.x - sg.a.x) * t, y: sg.a.y + (sg.b.y - sg.a.y) * t,
+        tx: (sg.b.x - sg.a.x) / sg.len, ty: (sg.b.y - sg.a.y) / sg.len };
+    };
+    return { L, at };
   }
 
   // Angle à l'écran d'une figure (angle stocké en degrés dans le repère de la carrière, 90 = vers C)
@@ -854,7 +909,7 @@
         const poly = screenPolyline(sh, g);
         // déplacement latéral : on alterne motif et symbole au lieu de les superposer
         const lateral = MOVE_IDS.includes(sh.m) && sh.m !== 'droit';
-        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? 30 * K() : 0);
+        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? lateralSlot(sh.m) : 0);
         lastSlots = m.slots || null;
         vis = `<path d="${m.s}" fill="none" stroke="${m.c}" stroke-width="${m.w}" stroke-linecap="round" stroke-linejoin="round"/>` +
           `<path d="${m.f}" fill="${m.c}"/>`;
