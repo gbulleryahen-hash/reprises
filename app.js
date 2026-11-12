@@ -16,8 +16,11 @@
 (() => {
   // ---------------------------------------------------------------- Constantes
   const S = 10;          // unités SVG par mètre
-  const PAD = 1;         // écart (m) entre la piste (points d'accroche) et le bord dessiné
-  const M = 40 + PAD * S; // marge autour de la piste (bord + lettres)
+  // Repère en mètres : la clôture (le bord dessiné) va de 0 à la largeur et de 0 à la longueur,
+  // les lettres sont aux distances officielles depuis la clôture. La piste (où passent les tracés
+  // et les points d'accroche) est à PAD mètre à l'intérieur de la clôture.
+  const PAD = 1;
+  const M = 40;          // marge autour de la carrière (lettres)
   const STROKE = 3.5;    // épaisseur des tracés
   const SNAP_R = 1.6;    // rayon d'accroche aux lettres (m)
   const STORAGE_KEY = 'reprises.courante';
@@ -118,10 +121,10 @@
       wall:   [['K', 'F', 6], ['V', 'P', 18], ['E', 'B', 30], ['S', 'R', 42], ['H', 'M', 54]],
       center: [['D', 6], ['L', 18], ['X', 30], ['I', 42], ['G', 54]],
     },
-    // 80 × 40 : lettres de coin à 6 m, puis espacées régulièrement (17 m)
+    // 80 × 40 (rectangle d'attelage) : lettres à 10 m des coins, puis tous les 15 m
     80: {
-      wall:   [['K', 'F', 6], ['V', 'P', 23], ['E', 'B', 40], ['S', 'R', 57], ['H', 'M', 74]],
-      center: [['D', 6], ['L', 23], ['X', 40], ['I', 57], ['G', 74]],
+      wall:   [['K', 'F', 10], ['V', 'P', 25], ['E', 'B', 40], ['S', 'R', 55], ['H', 'M', 70]],
+      center: [['D', 10], ['L', 25], ['X', 40], ['I', 55], ['G', 70]],
     },
   };
 
@@ -159,17 +162,18 @@
   const quarterXs = size => [arenaW(size) / 4, arenaW(size) * 3 / 4];
 
   function snapPoints(size) {
-    const L = size, d = LETTERS[size], w = arenaW(size), h = w / 2;
+    const L = size, d = LETTERS[size], w = arenaW(size), h = w / 2, T = PAD;
     const pts = [
-      { n: 'A', x: h, y: 0 }, { n: 'C', x: h, y: L },
+      { n: 'A', x: h, y: T }, { n: 'C', x: h, y: L - T },
       // coins de la piste
-      { n: 'coin', x: 0, y: 0 }, { n: 'coin', x: w, y: 0 },
-      { n: 'coin', x: 0, y: L }, { n: 'coin', x: w, y: L },
+      { n: 'coin', x: T, y: T }, { n: 'coin', x: w - T, y: T },
+      { n: 'coin', x: T, y: L - T }, { n: 'coin', x: w - T, y: L - T },
     ];
-    d.wall.forEach(([l, r, y]) => pts.push({ n: l, x: 0, y }, { n: r, x: w, y }));
+    // lettres : sur la piste, en face de la lettre
+    d.wall.forEach(([l, r, y]) => pts.push({ n: l, x: T, y }, { n: r, x: w - T, y }));
     d.center.forEach(([n, y]) => pts.push({ n, x: h, y }));
     // lignes du quart, à hauteur des lettres et aux extrémités
-    for (const y of [0, L, ...d.wall.map(q => q[2])]) for (const qx of quarterXs(size)) pts.push({ n: 'quart', x: qx, y });
+    for (const y of [T, L - T, ...d.wall.map(q => q[2])]) for (const qx of quarterXs(size)) pts.push({ n: 'quart', x: qx, y });
     return pts;
   }
 
@@ -183,12 +187,12 @@
     if (best) return { x: best.x, y: best.y, n: best.n };
     // sinon : accroche n'importe où le long des lignes (piste des grands côtés, quarts, ligne du milieu)…
     const w = arenaW(c.size);
-    if (p.y >= 0 && p.y <= c.size) {
-      for (const qx of [0, w / 4, w / 2, w * 3 / 4, w]) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'ligne' };
+    if (p.y >= PAD && p.y <= c.size - PAD) {
+      for (const qx of [PAD, w / 4, w / 2, w * 3 / 4, w - PAD]) if (Math.abs(p.x - qx) < 0.6) return { x: qx, y: p.y, n: 'ligne' };
     }
     // … et des petits côtés (A et C)
-    if (p.x >= 0 && p.x <= w) {
-      for (const qy of [0, c.size]) if (Math.abs(p.y - qy) < 0.6) return { x: p.x, y: qy, n: 'ligne' };
+    if (p.x >= PAD && p.x <= w - PAD) {
+      for (const qy of [PAD, c.size - PAD]) if (Math.abs(p.y - qy) < 0.6) return { x: p.x, y: qy, n: 'ligne' };
     }
     return { x: p.x, y: p.y };
   }
@@ -248,10 +252,10 @@
     let len = Math.hypot(vx, vy);
     if (len < 0.6) {
       // direction par défaut : vers l'intérieur de la carrière
-      if (a.x <= 0.5) [vx, vy] = [1, 0];
-      else if (a.x >= arenaW(c.size) - 0.5) [vx, vy] = [-1, 0];
-      else if (a.y <= 0.5) [vx, vy] = [0, 1];
-      else if (a.y >= c.size - 0.5) [vx, vy] = [0, -1];
+      if (a.x <= PAD + 0.5) [vx, vy] = [1, 0];
+      else if (a.x >= arenaW(c.size) - PAD - 0.5) [vx, vy] = [-1, 0];
+      else if (a.y <= PAD + 0.5) [vx, vy] = [0, 1];
+      else if (a.y >= c.size - PAD - 0.5) [vx, vy] = [0, -1];
       else [vx, vy] = [1, 0];
       len = 1;
     }
@@ -468,7 +472,35 @@
 
   // ---------------------------------------------------------------- État
   const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, textL: '', textR: '', note: '', shapes: [] });
-  const newReprise = () => ({ version: 1, title: '', cases: [newCase()] });
+  const newReprise = () => ({ version: 2, title: '', cases: [newCase()] });
+
+  // Fichiers « version 1 » : le repère était la piste (0 = piste) et la clôture dessinée 1 m plus loin.
+  // On convertit les points : lettres, lignes du quart et ligne du milieu ne bougent pas,
+  // les bords de piste passent à 1 m de la clôture.
+  function convertV1Shapes(shapes, size) {
+    const w = arenaW(size), L = size, q = w / 4, T = PAD;
+    const fx = x => x < q ? T + x * (q - T) / q : x > w - q ? w - q + (x - (w - q)) * (q - T) / q : x;
+    // interpolation par morceaux entre positions anciennes et nouvelles
+    const interp = (v, from, to) => {
+      for (let i = 0; i < from.length - 1; i++) {
+        if (v <= from[i + 1] || i === from.length - 2) return to[i] + (v - from[i]) * (to[i + 1] - to[i]) / (from[i + 1] - from[i]);
+      }
+      return v;
+    };
+    const fy = size === 80
+      ? y => interp(y, [0, 6, 23, 40, 57, 74, 80], [T, 10, 25, 40, 55, 70, 80 - T])   // anciennes lettres du 80 × 40
+      : y => (y < 6 ? T + y * (6 - T) / 6 : y > L - 6 ? L - 6 + (y - (L - 6)) * (6 - T) / 6 : y);
+    const P = o => (o && typeof o.x === 'number' ? { ...o, x: r2(fx(o.x)), y: r2(fy(o.y)) } : o);
+    return shapes.map(sh => {
+      const n = { ...sh };
+      if (Array.isArray(n.p)) n.p = n.p.map(P);
+      if (n.a && typeof n.a === 'object') n.a = P(n.a);
+      if (n.b) n.b = P(n.b);
+      if (n.c) n.c = P(n.c);
+      if (n.t === 'sym') { const m = P(n); n.x = m.x; n.y = m.y; }
+      return n;
+    });
+  }
 
   // Mouvements sur deux colonnes : lettres (textL) | consignes (textR), ligne par ligne.
   // Les anciens fichiers (un seul champ « text ») sont découpés automatiquement.
@@ -505,7 +537,7 @@
   function normalize(data) {
     if (!data || !Array.isArray(data.cases)) throw new Error('Fichier de reprise invalide');
     return {
-      version: 1,
+      version: 2,
       title: String(data.title || ''),
       page: data.page === 'portrait' ? 'portrait' : 'paysage',
       split: clampSplit(data.split),
@@ -516,7 +548,9 @@
         orient: ['v', 'v2', 'h', 'h2'].includes(c.orient) ? c.orient : 'v',
         ...splitText(c),
         note: String(c.note || ''),
-        shapes: Array.isArray(c.shapes) ? c.shapes : [],
+        shapes: !Array.isArray(c.shapes) ? []
+          : data.version === 2 ? c.shapes
+          : convertV1Shapes(c.shapes, [40, 60, 80].includes(c.size) ? c.size : 60),
       })),
     };
   }
@@ -638,10 +672,9 @@
   // ---------------------------------------------------------------- Rendu carrière
   function arenaSvg(c, g) {
     const L = c.size, d = LETTERS[c.size];
-    // Le bord est dessiné à PAD mètres à l'extérieur de la piste :
-    // les points d'accroche (x = 0 / largeur, y = 0 / L) restent sur la piste.
-    const P = PAD, w = g.w, h = w / 2;
-    const p0 = g.to({ x: -P, y: -P }), p1 = g.to({ x: w + P, y: L + P });
+    // clôture aux dimensions réelles ; lettres aux distances officielles depuis la clôture
+    const P = 0, w = g.w, h = w / 2;
+    const p0 = g.to({ x: 0, y: 0 }), p1 = g.to({ x: w, y: L });
     const x = Math.min(p0.x, p1.x), y = Math.min(p0.y, p1.y);
     const rw = Math.abs(p1.x - p0.x), rh = Math.abs(p1.y - p0.y);
     let s = `<rect class="arena" x="${x}" y="${y}" width="${rw}" height="${rh}"/>`;
