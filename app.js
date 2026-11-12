@@ -22,20 +22,36 @@
   const SNAP_R = 1.6;    // rayon d'accroche aux lettres (m)
   const STORAGE_KEY = 'reprises.courante';
 
-  const GAITS = [
-    { id: 'pas',        label: 'Pas',              color: '#4a90e2' },
-    { id: 'pas_all',    label: 'Pas allongé',      color: '#1a3a8f' },
-    { id: 'trot_ras',   label: 'Trot rassemblé',   color: '#9ccc65' },
-    { id: 'trot',       label: 'Trot de travail',  color: '#43a047' },
-    { id: 'trot_all',   label: 'Trot allongé',     color: '#1b5e20' },
-    { id: 'galop_ras',  label: 'Galop rassemblé',  color: '#ff7043' },
-    { id: 'galop',      label: 'Galop de travail', color: '#e53935' },
-    { id: 'galop_all',  label: 'Galop allongé',    color: '#8e0000' },
-    { id: 'piaffer',    label: 'Piaffer',          color: '#ab47bc' },
-    { id: 'passage',    label: 'Passage',          color: '#4a148c' },
-    { id: 'reculer',    label: 'Reculer',          color: '#d81b60' },
+  // Allures : le MOTIF de la ligne dit l'allure, la COULEUR (+ épaisseur, espacement) dit l'intensité.
+  // Couleurs choisies pour rester distinctes une fois imprimées en niveaux de gris.
+  const LEVELS = [
+    { id: 'ras',  label: 'rassemblé',  short: 'ras.',  color: '#F2B01E', w: 2.6, f: 0.85 },
+    { id: 'trav', label: 'de travail', short: 'trav.', color: '#4A9BE8', w: 2.9, f: 1.0 },
+    { id: 'moy',  label: 'moyen',      short: 'moy.',  color: '#007F5F', w: 3.2, f: 1.1 },
+    { id: 'all',  label: 'allongé',    short: 'all.',  color: '#18265A', w: 3.5, f: 1.2 },
   ];
+  const KINDS = [
+    { id: 'pas', label: 'Pas' }, { id: 'trot', label: 'Trot' },
+    { id: 'galopD', label: 'Galop à droite' }, { id: 'galopG', label: 'Galop à gauche' },
+  ];
+  const gaitName = (k, l) => k.id === 'pas'
+    ? { ras: 'Pas rassemblé', trav: 'Pas de travail', moy: 'Pas moyen', all: 'Pas allongé' }[l.id]
+    : `${k.label} ${l.label}`;
+  const GAITS = [];
+  for (const k of KINDS) for (const l of LEVELS) {
+    GAITS.push({ id: `${k.id}_${l.id}`, kind: k.id, lv: l.id, label: gaitName(k, l), color: l.color, w: l.w, f: l.f });
+  }
+  GAITS.push(
+    { id: 'piaffer', kind: 'piaffer', lv: 'ras',  label: 'Piaffer', color: '#D32F2F', w: 2.9, f: 0.9 },
+    { id: 'passage', kind: 'passage', lv: 'ras',  label: 'Passage', color: '#F2B01E', w: 2.6, f: 0.85 },
+    { id: 'reculer', kind: 'reculer', lv: 'trav', label: 'Reculer', color: '#7B1FA2', w: 2.9, f: 1.0 },
+  );
+  const SPECIAL_GAITS = ['piaffer', 'passage', 'reculer'];
   const GAIT = Object.fromEntries(GAITS.map(g => [g.id, g]));
+  // anciens identifiants (fichiers enregistrés avant le changement de code couleur)
+  const GAIT_ALIAS = { pas: 'pas_moy', trot: 'trot_trav', galop_ras: 'galopD_ras', galop: 'galopD_trav', galop_all: 'galopD_all' };
+  const gaitOf = id => GAIT[id] || GAIT[GAIT_ALIAS[id]] || GAIT.trot_trav;
+  const shapeGait = sh => (sh.m === 'reculer' ? GAIT.reculer : gaitOf(sh.g));
 
   const TOOLS = [
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
@@ -44,6 +60,12 @@
     { id: 'arc',    label: '◠ Arc',        hint: 'Glissez de la lettre de départ à la lettre d’arrivée, puis placez la souris du côté de l’arc et cliquez pour valider (Échap pour annuler).' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
+
+  const TOOL_ICONS = {
+    free: 'M4 17c3-8 6 4 9-3s5-6 7-4', line: 'M5 19L19 5', circle: 'M12 5a7 7 0 1 0 0.01 0',
+    arc: 'M5 17a7 7 0 0 1 14 0', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
+  };
+  const toolName = t => t.label.replace(/^\S+\s/, '');
 
   // Figures ponctuelles : clic pour poser, cliquer-glisser pour orienter
   const SYMBOLS = [
@@ -61,17 +83,19 @@
     { id: 'croisillon',  label: 'Croisillon' },
   ];
   const UNROTATED = ['halt', 'cone', 'simple', 'une_main'];
+  const GEAR = ['cone', 'barre', 'croisillon'];   // section « Matériel »
   const BLACK_SYMBOLS = ['halt', 'cone', 'barre', 'croisillon'];
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
+  // Ordre et noms du panneau ; wall = trait beige de la paroi sur l'icône (jamais sur le dessin)
   const MOVES = [
     { id: 'droit',     label: 'Droit' },
-    { id: 'shoulder',  label: 'Épaule en dedans' },
-    { id: 'ea',        label: 'Épaule en avant' },
-    { id: 'ced',       label: 'Contre-épaule en dedans' },
-    { id: 'hdedans',   label: 'Hanches en dedans' },
-    { id: 'hdehors',   label: 'Hanches en dehors' },
-    { id: 'cession',   label: 'Cession à la jambe' },
+    { id: 'shoulder',  label: 'Épaule en dedans', wall: true },
+    { id: 'ced',       label: 'Contre-épaule en dedans', wall: true },
+    { id: 'hdedans',   label: 'Travers', wall: true },
+    { id: 'hdehors',   label: 'Renvers', wall: true },
+    { id: 'ea',        label: 'Épaule devant' },
+    { id: 'cession',   label: 'Déplacement latéral (cession à la jambe)' },
     { id: 'appuyer',   label: 'Appuyer' },
     { id: 'pasdecote', label: 'Pas de côté' },
   ];
@@ -358,6 +382,8 @@
           `<rect x="3.9" y="-11" width="3.1" height="10" rx="1.55"/>` +
           `<rect x="-6.8" y="-3.5" width="14" height="13" rx="4.5"/>` +
           `</g><path d="M-5,4.5L-10.5,-1.5" stroke="${color}" stroke-width="3.3" stroke-linecap="round" fill="none"/>`;
+      case 'piaffer':    // piaffer posé sur place : une ellipse
+        return `<ellipse rx="13" ry="4.6" fill="${color}"/>`;
       case 'cone':
         return `<polygon points="0,-10 8.5,7 -8.5,7" fill="#222"/>`;
       case 'barre': {
@@ -382,14 +408,14 @@
     switch (kind) {
       case 'droit':     return ln('M-5,-5.5L3,0L-5,5.5', color, 3);
       case 'shoulder':  return ln('M-8,-1L2,3.5Q5,5 5.5,8.5', color) + dot(5.5, 9, color);
-      case 'ea':        return ln('M-8,0L3,2Q6,3 6.5,5.5', color) + dot(6.5, 6, color);
+      case 'ea':        return ln('M-9,0H5', color) + dot(7.5, 3.6, color);
       case 'ced':       return ln('M-8,1L2,-3.5Q5,-5 5.5,-8.5', color) + dot(5.5, -9, color);
       case 'hdedans':   return ln('M-7,7L2,0Q5,-2 8,-0.5', color) + dot(8.5, -0.3, color);
       case 'hdehors':   return ln('M-7,-7L2,0Q5,2 8,0.5', color) + dot(8.5, 0.3, color);
       case 'cession':   return ln('M-9,0H8M3,-4L8.5,0L3,4', color, 2.2);
       // flèche plus longue : la croix (sur la queue) et la pointe restent bien séparées
       case 'appuyer':   return ln('M-13,0H11M5.5,-4.2L11.5,0L5.5,4.2M-9,-3.6L-4,3.6M-9,3.6L-4,-3.6', color, 2.2);
-      case 'pasdecote': return ln('M-13,0H11M5.5,-4.2L11.5,0L5.5,4.2M-8,-3.6L-3,3.6M-8,3.6L-3,-3.6', color, 2.2);
+      case 'pasdecote': return ln('M-11,0H11M-2.6,-3.8L2.6,3.8M-2.6,3.8L2.6,-3.8', color, 2.2);
       case 'reculer':   return ln('M-8,0H8M-4,-3.5L-8.5,0L-4,3.5M4,-3.5L8.5,0L4,3.5', color, 2);
     }
     return '';
@@ -475,11 +501,11 @@
   if (!state.cases.length) state.cases.push(newCase());
   // Réglages de la barre d'outils : ils restent enclenchés (et sont mémorisés)
   const UI_KEY = 'reprises.outils';
-  const ui = { tool: 'line', gait: 'trot', move: 'droit', diam: 10, snap: true };
+  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true };
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
     // l'outil n'est pas repris d'une visite à l'autre : on démarre toujours sur « Ligne »
-    if (GAIT[saved.gait]) ui.gait = saved.gait;
+    if (saved.gait) ui.gait = gaitOf(saved.gait).id;
     if (MOVE_IDS.includes(saved.move)) ui.move = saved.move;
     if (DIAMS.includes(saved.diam)) ui.diam = saved.diam;
     if (typeof saved.snap === 'boolean') ui.snap = saved.snap;
@@ -612,6 +638,81 @@
     return res;
   }
 
+  // ---------------------------------------------------------------- Motifs des allures
+  // Le long d'une polyligne (unités écran) : pas = 4 points + flèche ; trot = 2 tirets + flèche ;
+  // galop = 2 points + 1 tiret + demi-flèche (côté droit ou gauche) ; passage = vague + flèche ;
+  // piaffer = ellipses ; reculer = doubles flèches. single : un seul motif, centré (icônes).
+  function gaitMotif(poly, gait, sc, single) {
+    const segs = []; let L = 0;
+    for (let i = 0; i < poly.length - 1; i++) {
+      const a = poly[i], b = poly[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len > 1e-6) { segs.push({ a, b, len, start: L }); L += len; }
+    }
+    const sw = r2(gait.w * sc);
+    if (!segs.length) return { s: '', f: '', w: sw, c: gait.color };
+    const at = d => {
+      d = Math.max(0, Math.min(L, d));
+      let sg = segs[segs.length - 1];
+      for (const x of segs) { if (d <= x.start + x.len) { sg = x; break; } }
+      const t = (d - sg.start) / sg.len;
+      return { x: sg.a.x + (sg.b.x - sg.a.x) * t, y: sg.a.y + (sg.b.y - sg.a.y) * t,
+        tx: (sg.b.x - sg.a.x) / sg.len, ty: (sg.b.y - sg.a.y) / sg.len };
+    };
+    const u = 6.5 * gait.f * sc, A = (4 + gait.w * 1.4) * sc, W = (2.2 + gait.w * 0.9) * sc;
+    let S = '', F = '';
+    const dot = d => {   // un peu plus gros que la moitié du trait : à l'œil, il paraît de même largeur
+      const p = at(d), r = sw * 0.62;
+      F += `M${r2(p.x - r)},${r2(p.y)}a${r2(r)},${r2(r)} 0 1 0 ${r2(2 * r)},0a${r2(r)},${r2(r)} 0 1 0 ${r2(-2 * r)},0Z`;
+    };
+    const dash = (d0, d1) => { const a = at(d0), b = at(d1); S += `M${r2(a.x)},${r2(a.y)}L${r2(b.x)},${r2(b.y)}`; };
+    const wave = (d0, d1, amp) => {
+      const N = 24;
+      for (let i = 0; i <= N; i++) {
+        const p = at(d0 + (d1 - d0) * i / N), o = amp * Math.sin(4 * Math.PI * i / N);
+        S += (i ? 'L' : 'M') + r2(p.x - p.ty * o) + ',' + r2(p.y + p.tx * o);
+      }
+    };
+    const arrow = (d0, half, back) => {
+      const b = at(d0), k = back ? -1 : 1, tx = b.tx * k, ty = b.ty * k, w = half ? W * 1.35 : W;
+      const tip = { x: b.x + tx * A, y: b.y + ty * A }, rx = -ty, ry = tx;   // (rx, ry) : côté droit du cheval
+      const p1 = { x: b.x + rx * w, y: b.y + ry * w }, p2 = { x: b.x - rx * w, y: b.y - ry * w };
+      const pts = half === 'R' ? [tip, p1, b] : half === 'L' ? [tip, b, p2] : [tip, p1, p2];
+      F += 'M' + pts.map(q => `${r2(q.x)},${r2(q.y)}`).join('L') + 'Z';
+    };
+    const erx = (9 + gait.w) * sc, ery = (3.2 + gait.w * 0.4) * sc;
+    const ellipse = d => {
+      const p = at(d), ang = r2(Math.atan2(p.ty, p.tx) * 180 / Math.PI);
+      const ax = p.x - p.tx * erx, ay = p.y - p.ty * erx, bx = p.x + p.tx * erx, by = p.y + p.ty * erx;
+      F += `M${r2(ax)},${r2(ay)}A${r2(erx)},${r2(ery)} ${ang} 1 0 ${r2(bx)},${r2(by)}A${r2(erx)},${r2(ery)} ${ang} 1 0 ${r2(ax)},${r2(ay)}Z`;
+    };
+    const K = {
+      pas:     { len: 3.9 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dot(s0 + 2 * u); dot(s0 + 3 * u); arrow(s0 + 3.9 * u); } },
+      trot:    { len: 4.8 * u + A, draw: s0 => { dash(s0, s0 + 1.6 * u); dash(s0 + 2.4 * u, s0 + 4 * u); arrow(s0 + 4.8 * u); } },
+      galopD:  { len: 4.3 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dash(s0 + 2 * u, s0 + 3.5 * u); arrow(s0 + 4.3 * u, 'R'); } },
+      galopG:  { len: 4.3 * u + A, draw: s0 => { dot(s0); dot(s0 + u); dash(s0 + 2 * u, s0 + 3.5 * u); arrow(s0 + 4.3 * u, 'L'); } },
+      passage: { len: 4.6 * u + A, draw: s0 => { wave(s0, s0 + 3.8 * u, (1.8 + gait.w * 0.5) * sc); arrow(s0 + 4.6 * u); } },
+      piaffer: { len: 2 * erx, draw: s0 => ellipse(s0 + erx) },
+      reculer: { len: 2 * A + 2.4 * u, draw: s0 => { arrow(s0 + A, null, true); dash(s0 + A, s0 + A + 2.4 * u); arrow(s0 + A + 2.4 * u); } },
+    }[gait.kind] || null;
+    if (!K) return { s: '', f: '', w: sw, c: gait.color };
+    const gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
+    const count = single ? 1 : Math.max(1, Math.floor((L - 2 + gap) / (K.len + gap)));
+    let st = Math.max(0, (L - (count * (K.len + gap) - gap)) / 2);
+    for (let i = 0; i < count; i++) { K.draw(st); st += K.len + gap; }
+    return { s: S, f: F, w: sw, c: gait.color };
+  }
+  const MOTIF_SC = 1.25;   // taille des motifs dans les vignettes (multipliée par le curseur)
+  // Petit échantillon de motif pour les boutons et légendes (SVG autonome)
+  function motifIcon(gait, w, h, color) {
+    const m = gait.kind === 'piaffer'
+      ? gaitMotif([{ x: w / 2 - 1, y: h / 2 }, { x: w / 2 + 1, y: h / 2 }], gait, 0.85, true)
+      : gaitMotif([{ x: 4, y: h / 2 }, { x: w - 4, y: h / 2 }], gait, 0.85, true);
+    const c = color || m.c;
+    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">` +
+      `<path d="${m.s}" fill="none" stroke="${c}" stroke-width="${m.w}" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="${m.f}" fill="${c}"/></svg>`;
+  }
+
   function polyLength(poly) {
     let L = 0;
     for (let i = 0; i < poly.length - 1; i++) L += Math.hypot(poly[i + 1].x - poly[i].x, poly[i + 1].y - poly[i].y);
@@ -620,24 +721,13 @@
 
   // Décorations automatiques selon le type de déplacement
   function decorations(sh, g, col) {
-    // « reculer » est une allure : ses tracés portent automatiquement le symbole ↔
-    // (les anciens tracés avec le déplacement « reculer » restent affichés pareil)
-    let move = MOVE_IDS.includes(sh.m) || sh.m === 'reculer' ? sh.m : 'droit';
-    if (sh.g === 'reculer' && move === 'droit') move = 'reculer';
+    // « droit » : rien à ajouter, les flèches font partie du motif de l'allure
+    const move = MOVE_IDS.includes(sh.m) ? sh.m : 'droit';
+    if (move === 'droit') return '';
     const poly = screenPolyline(sh, g);
     const len = polyLength(poly);
     if (len < 15) return '';
     const closed = sh.t === 'circle';
-    if (move === 'droit') {
-      if (closed && !sh.dir) return '';            // ancien cercle sans sens défini
-      const usable = closed ? len : len - 25;      // la flèche de fin existe déjà (sauf cercle)
-      const n = Math.max(1, Math.round(usable / (60 * K())));
-      const ds = Array.from({ length: n }, (_, i) => (i + 0.5) * usable / n);
-      return pointsAlong(poly, ds).map(p =>
-        `<path transform="translate(${r2(p.x)},${r2(p.y)}) rotate(${r2(p.ang)}) scale(${K()})" d="M-5,-5.5L3,0L-5,5.5" ` +
-        `fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
-      ).join('');
-    }
     // Déplacements latéraux : le symbole est répété le long du parcours,
     // orienté selon le sens de la marche et le côté intérieur.
     const step = 72 * K();
@@ -678,38 +768,21 @@
   function shapeSvg(sh, g, i) {
     const vis = shapeVisual(sh, g, i);
     if (!vis || sh.t === 'sym') return vis;
-    const col = (GAIT[sh.g] || GAIT.trot).color;
+    const col = shapeGait(sh).color;
     // les décorations s'insèrent juste avant la zone de clic (fin du groupe)
     return vis.replace(/<\/g>$/, `<g class="deco">${decorations(sh, g, col)}</g></g>`);
   }
 
   function shapeVisual(sh, g, i) {
-    const col = (GAIT[sh.g] || GAIT.trot).color;
-    const arrow = `marker-end="url(#arr-${GAIT[sh.g] ? sh.g : 'trot'})"`;
-    const lateral = (sh.m && sh.m !== 'droit') || sh.g === 'reculer';
-    const stroke = `fill="none" stroke="${col}" stroke-width="${lateral ? 2.2 : STROKE}" stroke-linecap="round" stroke-linejoin="round"` +
-      (lateral ? ' stroke-opacity=".45"' : '');
+    const gait = shapeGait(sh), col = gait.color;
     let vis = '', hit = '';
     switch (sh.t) {
-      case 'line': {
-        const d = polyPath(filletPoints(sh.p, CORNER_R).map(g.to));
-        vis = `<path d="${d}" ${stroke} ${arrow}/>`; hit = `<path class="hit" d="${d}"/>`;
-        break;
-      }
-      case 'free': {
-        const d = smoothPath(sh.p.map(g.to));
-        vis = `<path d="${d}" ${stroke} ${arrow}/>`; hit = `<path class="hit" d="${d}"/>`;
-        break;
-      }
-      case 'arc': {
-        const d = polyPath(arcPoints(sh.a, sh.b, sh.r, sh.side).map(g.to));
-        vis = `<path d="${d}" ${stroke} ${arrow}/>`; hit = `<path class="hit" d="${d}"/>`;
-        break;
-      }
-      case 'circle': {
-        const q = g.to(sh.c);
-        vis = `<circle cx="${q.x}" cy="${q.y}" r="${sh.r * S}" ${stroke}/>`;
-        hit = `<circle class="hit" cx="${q.x}" cy="${q.y}" r="${sh.r * S}"/>`;
+      case 'line': case 'free': case 'arc': case 'circle': {
+        const poly = screenPolyline(sh, g);
+        const m = gaitMotif(poly, gait, MOTIF_SC * K());
+        vis = `<path d="${m.s}" fill="none" stroke="${m.c}" stroke-width="${m.w}" stroke-linecap="round" stroke-linejoin="round"/>` +
+          `<path d="${m.f}" fill="${m.c}"/>`;
+        hit = `<path class="hit" d="${polyPath(poly)}"/>`;
         break;
       }
       case 'sym': {
@@ -745,7 +818,7 @@
     const r = refs.get(c.id);
     if (!drag || drag.caseId !== c.id) { r.preview.innerHTML = ''; return; }
     const g = geom(c.size, c.orient);
-    const col = GAIT[ui.gait].color;
+    const col = gaitOf(ui.gait).color;
     const st = `fill="none" stroke="${col}" stroke-width="${STROKE}" stroke-linecap="round" stroke-linejoin="round" opacity=".7"`;
     let s = '';
     if (drag.tool === 'sym') {
@@ -812,6 +885,10 @@
     if (!c) return;
     drawPreview(c);
     if (pts.length >= 2) mutate(c, () => c.shapes.push({ t: 'line', g: ui.gait, m: ui.move, p: pts }));
+    else if (pts.length === 1 && gaitOf(ui.gait).kind === 'piaffer') {
+      // piaffer sur place : double-clic sur un point
+      mutate(c, () => c.shapes.push({ t: 'sym', k: 'piaffer', g: 'piaffer', x: pts[0].x, y: pts[0].y, a: 90 }));
+    }
   }
 
   // Orientation d'une figure d'après le glissé (degrés, aimantée tous les 15°)
@@ -1088,16 +1165,30 @@
 
   // ---------------------------------------------------------------- Barre d'outils
   function buildToolbar() {
-    $('#tools').innerHTML = TOOLS.map(t => `<button data-tool="${t.id}">${t.label}</button>`).join('');
-    $('#symbols').innerHTML = SYMBOLS.map(s =>
-      `<button data-tool="sym:${s.id}" title="${s.label}"><svg viewBox="-16 -16 32 32" width="22" height="22"><g transform="rotate(${UNROTATED.includes(s.id) ? 0 : -90})">${glyph(s.id, '#333')}</g></svg>${s.label}</button>`
-    ).join('');
-    $('#moves').innerHTML = MOVES.map(m =>
-      `<button data-move="${m.id}" title="${m.label}"><svg viewBox="-13 -13 26 26" width="20" height="20">${moveGlyph(m.id, '#333')}</svg>${m.label}</button>`
-    ).join('');
-    $('#gaits').innerHTML = GAITS.map(g =>
-      `<button data-gait="${g.id}" style="--c:${g.color}"><span class="swatch" style="background:${g.color}"></span>${g.label}</button>`
-    ).join('');
+    const ib = (attrs, title, inner) =>
+      `<button ${attrs} title="${esc(title)}" aria-label="${esc(title)}">${inner}</button>`;
+    $('#tools').innerHTML = TOOLS.map(t => ib(`data-tool="${t.id}"`, toolName(t),
+      `<svg viewBox="0 0 24 24"><path d="${TOOL_ICONS[t.id]}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`)).join('');
+    const symBtn = f => ib(`data-tool="sym:${f.id}"`, f.label,
+      `<svg viewBox="-16 -16 32 32"><g transform="rotate(${UNROTATED.includes(f.id) ? 0 : -90})">${glyph(f.id, '#2b2420')}</g></svg>`);
+    $('#symbols').innerHTML = SYMBOLS.filter(f => !GEAR.includes(f.id)).map(symBtn).join('');
+    $('#gear').innerHTML = SYMBOLS.filter(f => GEAR.includes(f.id)).map(symBtn).join('');
+    // déplacements : le cheval monte, la paroi (trait beige) est à gauche pour ceux qui la longent
+    $('#moves').innerHTML = MOVES.map(m => ib(`data-move="${m.id}"`, m.label,
+      `<svg viewBox="-13 -13 26 26"><g transform="rotate(-90)">` +
+      (m.wall ? `<path d="M-12,-11.5H12" stroke="#d8c3a0" stroke-width="3" stroke-linecap="round"/>` : '') +
+      `${moveGlyph(m.id, 'currentColor')}</g></svg>`)).join('');
+    // allures : une ligne par allure — [rassemblé] [travail = bouton motif] [moyen] [allongé]
+    const dotBtn = g => `<button class="gdot" data-gait="${g.id}" title="${esc(g.label)}" aria-label="${esc(g.label)}" style="--c:${g.color}"></button>`;
+    $('#gaits').innerHTML = LEVELS.map(l => `<span class="ghead" title="${esc(l.label)}">${l.short}</span>`).join('') +
+      KINDS.map(k => {
+        const g = lk => GAIT[`${k.id}_${lk}`];
+        return dotBtn(g('ras')) +
+          `<button class="gpill" data-gait="${g('trav').id}" title="${esc(g('trav').label)}" aria-label="${esc(g('trav').label)}" style="--c:${g('trav').color}">${motifIcon(g('trav'), 92, 22, 'currentColor')}</button>` +
+          dotBtn(g('moy')) + dotBtn(g('all'));
+      }).join('');
+    $('#gaits-x').innerHTML = SPECIAL_GAITS.map(id => GAIT[id]).map(g =>
+      `<button class="gpill gfix" data-gait="${g.id}" title="${esc(g.label)}" aria-label="${esc(g.label)}" style="--c:${g.color}">${motifIcon(g, 52, 22)}</button>`).join('');
     $('#diams').innerHTML = DIAMS.map(d => `<button data-diam="${d}">${d} m</button>`).join('');
 
     $('.toolbar').addEventListener('click', e => {
@@ -1133,7 +1224,7 @@
 
     // légende imprimée
     $('#legend').innerHTML =
-      GAITS.map(g => `<span><span class="swatch" style="background:${g.color}"></span>${esc(g.label)}</span>`).join('') +
+      GAITS.map(g => `<span>${motifIcon(g, 40, 14)}${esc(g.label)}</span>`).join('') +
       MOVES.map(m => `<span><svg viewBox="-13 -13 26 26" width="14" height="14">${moveGlyph(m.id, '#333')}</svg>${esc(m.label)}</span>`).join('') +
       SYMBOLS.map(f => `<span><svg viewBox="-16 -16 32 32" width="16" height="16"><g transform="rotate(${UNROTATED.includes(f.id) ? 0 : -90})">${glyph(f.id, '#333')}</g></svg>${esc(f.label)}</span>`).join('');
 
@@ -1146,15 +1237,17 @@
     document.querySelectorAll('[data-move]').forEach(b => b.classList.toggle('active', b.dataset.move === ui.move));
     const cur = $('#current');
     if (cur) {
-      const gg = GAIT[ui.gait], mm = MOVES.find(m => m.id === ui.move);
-      cur.innerHTML = `<span class="swatch" style="background:${gg.color}"></span><b>${esc(gg.label)}</b> · ${esc(mm.label)}`;
+      const gg = gaitOf(ui.gait), mm = MOVES.find(m => m.id === ui.move) || MOVES[0];
+      cur.innerHTML = `${motifIcon(gg, 50, 16)}<b>${esc(gg.label)}</b> · ${esc(mm.label)}`;
       cur.style.borderColor = gg.color;
     }
     document.querySelectorAll('[data-diam]').forEach(b => b.classList.toggle('active', +b.dataset.diam === ui.diam));
     $('#diam-group').style.display = (ui.tool === 'circle' || ui.tool === 'arc') ? '' : 'none';
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
-    $('#hint').textContent = t ? t.hint
+    $('#hint').textContent = gaitOf(ui.gait).kind === 'piaffer' && t && (t.id === 'line')
+      ? 'Piaffer : double-cliquez sur un point pour le poser sur place, ou tracez une ligne pour un piaffer qui avance.'
+      : t ? t.hint
       : 'Cliquez pour poser la figure (elle s’accroche aux lettres), ou cliquez-glissez dans la direction du cheval pour l’orienter.';
   }
 
@@ -1180,18 +1273,18 @@
     // allures, déplacements et figures réellement utilisés dans la reprise
     const used = { g: new Set(), m: new Set(), k: new Set() };
     for (const c of state.cases) for (const sh of c.shapes) {
-      if (sh.g) used.g.add(sh.g);
+      if (sh.g || sh.m === 'reculer') used.g.add(shapeGait(sh).id);
       if (sh.t === 'sym') used.k.add(sh.k);
       else if (sh.m && sh.m !== 'droit') used.m.add(sh.m);
     }
     const gaits = GAITS.filter(g => used.g.has(g.id));
     const rows = (gaits.length ? gaits : GAITS).map(g =>
-      `<div class="lg"><span class="lsq" style="background:${g.color}"></span>${esc(g.label)}</div>`).join('') +
+      `<div class="lg">${motifIcon(g, 40, 14).replace('<svg ', '<svg class="lmo" ')}${esc(g.label)}</div>`).join('') +
       MOVES.filter(m => used.m.has(m.id)).map(m =>
         `<div class="lg"><svg viewBox="-13 -13 26 26" class="lic">${moveGlyph(m.id, '#333')}</svg>${esc(m.label)}</div>`).join('') +
       SYMBOLS.filter(f => used.k.has(f.id)).map(f =>
         `<div class="lg"><svg viewBox="-16 -16 32 32" class="lic"><g transform="rotate(${UNROTATED.includes(f.id) ? 0 : -90})">${glyph(f.id, '#333')}</g></svg>${esc(f.label)}</div>`).join('');
-    return `<div class="pcell plegend"><div class="ptitle-lg">Code couleur</div><div class="lgrid">${rows}</div></div>`;
+    return `<div class="pcell plegend"><div class="ptitle-lg">Légende</div><div class="lgrid">${rows}</div></div>`;
   }
 
   // Copie autonome d'un dessin : styles écrits dans le SVG et flèches incluses,

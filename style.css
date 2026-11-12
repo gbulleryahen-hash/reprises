@@ -381,3 +381,43 @@ body.tool-eraser .shape:hover { opacity: .35; }
 @media (max-width: 760px) {
   .topbar { position: static; }
 }
+
+/* ---------- Panneau compact : icônes, allures en grille ---------- */
+.toolbar { width: 236px; gap: 12px; padding: 12px 14px 20px; }
+.toolbar .group { gap: 5px; }
+.icons5 { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.icons5 button {
+  height: 38px; width: auto !important; padding: 0; justify-content: center !important;
+  color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 8px;
+}
+.icons5 button svg { width: 24px; height: 24px; display: block; }
+.icons5 button.active { background: #efe4d3; border: 2px solid var(--ink); }
+.diams { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-top: 4px; }
+.diams button { font-size: 11px !important; padding: 3px 0 !important; justify-content: center; }
+.diams button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+.gaitgrid { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px 28px; gap: 5px; align-items: center; }
+.ghead { font-size: 10px; color: var(--muted); text-align: center; }
+.gdot {
+  width: 24px; height: 24px; padding: 0; justify-self: center; border-radius: 50%;
+  background: var(--c); border: 1px solid rgba(0,0,0,.12);
+}
+.gdot:hover { border-color: rgba(0,0,0,.4); }
+.gdot.active { border: 2px solid #fff; box-shadow: 0 0 0 2px var(--c); }
+.gpill {
+  height: 30px; padding: 0; border-radius: 15px; justify-content: center;
+  background: #f8f5f0; border: 1px solid var(--line); color: #7a6f66;
+}
+.gpill svg { display: block; }
+.gpill.active { background: #f3ece1; border: 2px solid var(--ink); color: var(--c); }
+.gaitx { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
+.topbar .current svg { flex: none; }
+.lmo { width: 11mm; height: 3.8mm; flex: none; }
+@media (max-width: 760px) { .toolbar { width: auto; } }
+/* priorité sur les anciennes règles par identifiant */
+#tools, #moves, #symbols, #gear { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); flex-direction: initial; }
+#gaits { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px 28px; flex-direction: initial; }
+#gaits button, #moves button, #symbols button, #tools button, #gear button { width: auto; min-height: 0; }
+#gaits .gpill { width: 100%; }
+#gaits-x .gpill { width: 100%; }
+#gaits .gdot { width: 24px; height: 24px; min-width: 24px; }

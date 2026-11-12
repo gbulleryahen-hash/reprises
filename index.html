@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Éditeur de reprises de dressage</title>
-  <link rel="stylesheet" href="style.css?v=2026111146">
+  <link rel="stylesheet" href="style.css?v=2026111203">
 </head>
 <body>
   <header class="topbar no-print">
@@ -33,23 +33,25 @@
     <aside class="toolbar no-print" aria-label="Outils">
       <div class="group">
         <span class="label">Outil</span>
-        <div id="tools" class="seg"></div>
-      </div>
-      <div class="group" id="diam-group">
-        <span class="label">Diamètre</span>
-        <div id="diams" class="seg"></div>
+        <div id="tools" class="icons5"></div>
+        <div id="diam-group"><div id="diams" class="diams"></div></div>
       </div>
       <div class="group">
         <span class="label">Allure</span>
-        <div id="gaits" class="seg"></div>
+        <div id="gaits" class="gaitgrid"></div>
+        <div id="gaits-x" class="gaitx"></div>
       </div>
       <div class="group">
         <span class="label">Déplacement</span>
-        <div id="moves" class="seg"></div>
+        <div id="moves" class="icons5"></div>
       </div>
       <div class="group">
-        <span class="label">Figures</span>
-        <div id="symbols" class="seg"></div>
+        <span class="label">Figure</span>
+        <div id="symbols" class="icons5"></div>
+      </div>
+      <div class="group">
+        <span class="label">Matériel</span>
+        <div id="gear" class="icons5"></div>
       </div>
       <div class="group">
         <span class="label">Taille des symboles <span id="sym-scale-val">100 %</span></span>
@@ -71,6 +73,6 @@
   <!-- Flèches de direction (une par allure) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="markers"></defs></svg>
 
-  <script src="app.js?v=2026111146"></script>
+  <script src="app.js?v=2026111203"></script>
 </body>
 </html>
