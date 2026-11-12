@@ -1556,7 +1556,6 @@
   // Mise en page « fiche de reprise » : A4 paysage, 4 colonnes × 3 rangées par page,
   // case numérotée, carrière, mouvements (lettres | consigne), encadré jaune.
   // paysage : 4 × 3 = 12 cases ; portrait : 4 × 4 = 16 cases
-  const perPage = () => (state.page === 'portrait' ? 16 : 12);
 
   function descHtml(c) {
     const L = (c.textL || '').split('\n'), R = (c.textR || '').split('\n');
@@ -1565,7 +1564,7 @@
     for (let i = 0; i < n; i++) {
       const l = (L[i] || '').trim(), t = (R[i] || '').trim();
       if (!l && !t) continue;
-      out += `<div class="pl"><span class="pk">${esc(l)}</span><span>${esc(t)}</span></div>`;
+      out += `<span class="pk">${esc(l)}</span><span class="pt">${esc(t)}</span>`;
     }
     return out;
   }
@@ -1585,18 +1584,18 @@
         `<div class="lg"><svg viewBox="-13 -13 26 26" class="lic">${moveGlyph(m.id, '#333')}</svg>${esc(m.label)}</div>`).join('') +
       SYMBOLS.filter(f => used.k.has(f.id)).map(f =>
         `<div class="lg"><svg viewBox="-16 -16 32 32" class="lic"><g transform="rotate(${UNROTATED.includes(f.id) ? 0 : -90})">${glyph(f.id, '#333')}</g></svg>${esc(f.label)}</div>`).join('');
-    return `<div class="pcell plegend"><div class="ptitle-lg">Légende</div><div class="lgrid">${rows}</div></div>`;
+    return `<div class="pcell plegend"><div class="pch"><span class="ptitle-lg">Légende</span></div><div class="lgrid">${rows}</div></div>`;
   }
 
   // Copie autonome d'un dessin : styles écrits dans le SVG et flèches incluses,
   // pour qu'il s'affiche pareil à l'impression et dans le PDF.
   const PRINT_STYLES = {
-    arena: 'fill:#fff;stroke:#333;stroke-width:1.5',
-    centerline: 'stroke:#9bb3d1;stroke-width:1',
-    quarterline: 'stroke:#9bb3d1;stroke-width:1;opacity:.7',
-    tick: 'stroke:#333;stroke-width:2',
-    letter: 'font:700 20px "Times New Roman",Times,serif;fill:#111;text-anchor:middle;dominant-baseline:central',
-    cletter: 'font:700 15px "Times New Roman",Times,serif;fill:#6b5a4c;opacity:.5;text-anchor:middle;dominant-baseline:central',
+    arena: 'fill:#fbf9f5;stroke:#3a3631;stroke-width:1.4',
+    centerline: 'stroke:#8a8075;stroke-width:1.1;stroke-dasharray:1 5;stroke-linecap:round;opacity:.55',
+    quarterline: 'stroke:#8a8075;stroke-width:1.1;stroke-dasharray:1 5;stroke-linecap:round;opacity:.55',
+    tick: 'stroke:#3a3631;stroke-width:1.6',
+    letter: 'font:600 21px Inter,"Helvetica Neue",Arial,sans-serif;fill:#1d1b18;text-anchor:middle;dominant-baseline:central',
+    cletter: 'font:500 15px Inter,"Helvetica Neue",Arial,sans-serif;fill:#8a8075;text-anchor:middle;dominant-baseline:central',
   };
   function standaloneSvg(src) {
     const svg = src.cloneNode(true);
@@ -1612,43 +1611,75 @@
     return svg;
   }
 
+  // « … — Coef. 2 » à la fin des idées directrices : le coefficient passe dans l'en-tête de la figure
+  function splitCoef(note) {
+    const m = /\s*[—–-]?\s*coef(?:f|ficient)?\.?\s*:?\s*(\d+(?:[.,]\d+)?)\s*\.?\s*$/i.exec(note);
+    return m ? { text: note.slice(0, m.index).trim(), coef: m[1] } : { text: note, coef: '' };
+  }
+
   function buildPrint() {
     let root = $('#print-root');
     if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
     const sizes = [...new Set(state.cases.map(c => c.size))];
-    const sizeTxt = sizes.length === 1 ? sizeLabel(sizes[0]) : '';
+    const sizeTxt = sizes.map(sizeLabel).join(' / ');
     const cells = state.cases.map((c, i) => {
       const r = refs.get(c.id);
       const svg = standaloneSvg(r.svg);
-      return `<div class="pcell">
-        <div class="ptop"><div class="pnum">${i + 1}</div><div class="psvg">${svg.outerHTML}</div></div>
-        <div class="pdesc">${descHtml(c)}</div>
-        ${c.note && c.note.trim() ? `<div class="pnote">${esc(c.note.trim()).replace(/\n/g, '<br>')}</div>` : ''}
+      const { text, coef } = splitCoef((c.note || '').trim());
+      const horiz = c.orient === 'h' || c.orient === 'h2';
+      return `<div class="pcell${horiz ? ' phoriz' : ''}">
+        <div class="pch"><span class="pnum">${i + 1}</span>${coef ? `<span class="pcoef${coef !== '1' ? ' hi' : ''}">coef. ${esc(coef)}</span>` : ''}</div>
+        <div class="pbody">
+          <div class="psvg">${svg.outerHTML}</div>
+          <div class="ptext">
+            <div class="pdesc">${descHtml(c)}</div>
+            ${text ? `<div class="pnote">${esc(text).replace(/\n/g, '<br>')}</div>` : ''}
+          </div>
+        </div>
       </div>`;
     });
     cells.push(legendCell());
+    // portrait : 4 colonnes, 3 ou 4 rangées selon ce qui remplit le mieux le moins de pages possible
+    const portraitRows = () => {
+      const nPages = Math.ceil(cells.length / 16);
+      return Math.max(3, Math.min(4, Math.ceil(cells.length / (4 * nPages))));
+    };
+    const ROWS = state.page === 'portrait' ? portraitRows() : 3;
+    const PER_PAGE = 4 * ROWS;
+    root.style.setProperty('--rows', ROWS);
+    root.classList.toggle('rows4', ROWS === 4);
     const pages = [];
-    const PER_PAGE = perPage();
     for (let i = 0; i < cells.length; i += PER_PAGE) pages.push(cells.slice(i, i + PER_PAGE));
     const title = esc(state.title || 'Reprise');
-    // orientation de la page (paysage : 4 × 3 cases ; portrait : 3 × 4 cases)
+    // orientation de la page (paysage : 4 × 3 cases ; portrait : 4 × 4 cases)
     const portrait = state.page === 'portrait';
     root.classList.toggle('portrait', portrait);
     let ps = $('#page-style');
     if (!ps) { ps = document.createElement('style'); ps.id = 'page-style'; document.head.appendChild(ps); }
     ps.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 7mm; }`;
-    root.innerHTML = pages.map((pc, n) => `
+    const len = totalLength().toLocaleString('fr-FR'), time = fmtTime(totalTime());
+    const n = state.cases.length;
+    root.innerHTML = pages.map((pc, k) => `
       <section class="ppage">
         <header class="phead">
-          <span class="ptitle">${title}</span><span class="ptotal">${totalText()}</span><span class="psize">${sizeTxt}</span>
-          <span class="ppnum">Page ${n + 1}${pages.length > 1 ? ' / ' + pages.length : ''}</span>
+          <div class="ph-l">
+            <div class="pkicker">Reprise de dressage</div>
+            <div class="ptitle">${title}</div>
+          </div>
+          <dl class="pmeta">
+            ${sizeTxt ? `<div><dt>Carrière</dt><dd>${sizeTxt}</dd></div>` : ''}
+            <div><dt>Figures</dt><dd>${n}</dd></div>
+            <div><dt>Parcours</dt><dd>${len} m</dd></div>
+            <div><dt>Durée</dt><dd>≈ ${time}</dd></div>
+          </dl>
         </header>
         <div class="pgrid">${pc.join('')}${'<div class="pcell pempty"></div>'.repeat(PER_PAGE - pc.length)}</div>
+        <footer class="pfoot"><span>${title}</span><span>Page ${k + 1} / ${pages.length}</span></footer>
       </section>`).join('');
   }
 
   // ---------------------------------------------------------------- Export PDF
-  // Les pages de la fiche sont photographiées (html2canvas) puis assemblées en PDF A4 paysage (jsPDF).
+  // Les pages de la fiche sont photographiées (html2canvas) puis assemblées en PDF A4 (jsPDF).
   const PDF_LIBS = [
     ['html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'],
     ['jspdf', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'],
@@ -1672,6 +1703,7 @@
     try {
       for (const [g, src] of PDF_LIBS) if (!window[g]) await loadScript(src);
       buildPrint();
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;   // police Inter chargée avant la photo
       window.scrollTo(0, 0);
       root().classList.add('exporting');
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));

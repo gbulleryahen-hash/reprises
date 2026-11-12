@@ -201,53 +201,88 @@ body.tool-eraser .shape:hover { opacity: .35; }
 
 /* ---------- Fiche de reprise (impression et export PDF) ---------- */
 .ppage {
+  --ink: #1d1b18; --muted: #6f675e; --rule: #c9c1b6; --accent: #8c6a2f;
   width: 283mm; height: 195mm;
   display: flex; flex-direction: column;
   break-after: page; page-break-after: always;
-  font-family: "Times New Roman", Times, Georgia, serif; color: #111;
+  font-family: Inter, "Helvetica Neue", "Segoe UI", Arial, sans-serif; color: var(--ink);
+  font-feature-settings: "cv11", "ss01";
 }
 .ppage:last-child { break-after: auto; page-break-after: auto; }
-.phead { display: flex; align-items: baseline; gap: 4mm; padding: 0 2mm 2mm; }
-.ptitle { font-size: 17pt; font-weight: 700; text-decoration: underline; }
-.psize { font-size: 10pt; }
-.ppnum { margin-left: auto; font-size: 12pt; }
+
+.phead {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 6mm;
+  padding: 0 0.5mm 2.2mm; margin-bottom: 3mm;
+  border-bottom: 0.6mm solid var(--ink);
+}
+.ph-l { min-width: 0; }
+.pkicker {
+  font-size: 6.5pt; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 0.8mm;
+}
+.ptitle { font-size: 14pt; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
+.pmeta { display: flex; gap: 5mm; margin: 0; flex: none; }
+.pmeta div { display: flex; flex-direction: column; align-items: flex-end; }
+.pmeta dt { font-size: 5.8pt; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.pmeta dd { margin: 0.4mm 0 0; font-size: 9pt; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .pgrid {
   flex: 1; min-height: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr);
-  border-top: 1px dashed #555; border-left: 1px dashed #555;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 2.4mm;
 }
 .pcell {
-  border-right: 1px dashed #555; border-bottom: 1px dashed #555;
-  padding: 1.5mm 2mm; display: flex; flex-direction: column; gap: 1mm;
-  overflow: hidden; min-height: 0;
+  border: 0.25mm solid var(--rule); border-radius: 1.4mm;
+  padding: 1.8mm 2mm 2mm; display: flex; flex-direction: column; gap: 1.3mm;
+  overflow: hidden; min-height: 0; background: #fff;
+  contain: size layout paint; break-inside: avoid;
 }
-.ptop { display: flex; gap: 1.5mm; flex: 1; min-height: 0; }
+.pempty { border-color: transparent; background: none; }
+.pch { display: flex; align-items: center; justify-content: space-between; flex: none; }
 .pnum {
-  flex: none; align-self: flex-start;
-  width: 7mm; height: 7mm; border: 1.2px solid #111;
-  display: flex; align-items: center; justify-content: center;
-  font-family: system-ui, sans-serif; font-size: 10pt;
+  min-width: 5mm; height: 5mm; padding: 0 1.2mm; border-radius: 2.5mm;
+  background: var(--ink); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 7.5pt; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.psvg { flex: 1; min-width: 0; min-height: 22mm; }
+.pcoef {
+  font-size: 6.3pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.pcoef.hi { color: #fff; background: var(--accent); padding: 0.5mm 1.4mm; border-radius: 1mm; }
+.pbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.3mm; }
+.psvg { flex: 0 1 var(--dh, 30mm); min-width: 0; min-height: 22mm; }
 .psvg svg { width: 100%; height: 100%; display: block; }
-.psvg .arena { fill: #fff; stroke: #333; stroke-width: 1.5; }
-.psvg .quarterline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .7; }
-.psvg .centerline { stroke: #9bb3d1; stroke-dasharray: none; opacity: .9; }
-.pempty { border-color: transparent; }
-.pdesc { font-size: 7.5pt; line-height: 1.2; }
-.pl { display: grid; grid-template-columns: var(--split, 18%) 1fr; column-gap: 1mm; }
-.pk { font-weight: 400; }
-.pnote {
-  background: #f2c34a; padding: 1.2mm 1.8mm;
-  font-size: 6.8pt; font-style: italic; line-height: 1.2;
+.ptext { flex: 1 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 1.3mm; }
+.ptext > .pnote { margin-top: auto; }
+/* Paysage : carrière verticale à gauche, texte à droite */
+#print-root:not(.portrait) .pcell:not(.phoriz) .pbody { flex-direction: row; gap: 2.5mm; }
+#print-root:not(.portrait) .pcell:not(.phoriz) .psvg { flex: none; width: 34%; height: 100%; }
+#print-root:not(.portrait) .pcell:not(.phoriz) .ptext { flex: 1 1 0; min-height: 0; }
+.pdesc {
+  font-size: 7pt; line-height: 1.28; flex: none;
+  display: grid; grid-template-columns: minmax(var(--split, 18%), max-content) 1fr; gap: 0.35mm 1.6mm;
 }
-.plegend { justify-content: center; }
-.ptitle-lg { font-weight: 700; font-size: 11pt; text-decoration: underline; margin-bottom: 1.5mm; }
-.lgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 3mm; font-size: 7.5pt; }
-.lg { display: flex; align-items: center; gap: 1.5mm; }
+.pk { font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.pnote {
+  flex: none;
+  border-top: 0.2mm solid #e4ddd2; padding-top: 1.1mm;
+  font-size: 6.2pt; font-style: italic; line-height: 1.3; color: #4f4840;
+}
+
+.plegend { justify-content: flex-start; }
+.ptitle-lg { font-size: 6.5pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.lgrid { display: grid; grid-template-columns: 1fr; gap: 1.1mm; font-size: 6.6pt; }
+.lg { display: flex; align-items: center; gap: 1.8mm; }
 .lsq { width: 4.5mm; height: 4.5mm; border: 0.6px solid #555; flex: none; }
 .lic { width: 4.5mm; height: 4.5mm; flex: none; }
+.lmo { width: 10mm; height: 3.5mm; flex: none; }
+#print-root:not(.portrait) .lgrid { grid-template-columns: 1fr 1fr; column-gap: 3mm; }
+
+.pfoot {
+  display: flex; justify-content: space-between; gap: 6mm;
+  margin-top: 2.2mm; padding-top: 1.4mm; border-top: 0.2mm solid var(--rule);
+  font-size: 6pt; color: var(--muted); letter-spacing: .02em;
+}
 
 #print-root.exporting {
   display: block; position: absolute; left: 0; top: 0; z-index: 1000;
@@ -307,9 +342,11 @@ body.tool-eraser .shape:hover { opacity: .35; }
 
 /* Orientation portrait : 4 colonnes × 4 rangées */
 #print-root.portrait .ppage { width: 196mm; height: 283mm; }
-#print-root.portrait .pgrid { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); }
-#print-root.portrait .pdesc { font-size: 7pt; }
-#print-root.portrait .pnote { font-size: 6.3pt; }
+#print-root.portrait .pgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr)); gap: 2mm; }
+#print-root.portrait { --dh: 50mm; }
+#print-root.portrait.rows4 { --dh: 31mm; }
+#print-root.portrait .pdesc { font-size: 6.6pt; }
+#print-root.portrait .pnote { font-size: 5.9pt; }
 #print-root.portrait.exporting { width: 196mm; }
 
 #page-orient {
