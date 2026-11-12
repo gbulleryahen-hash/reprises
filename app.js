@@ -452,7 +452,7 @@
   }
   // taille des symboles (curseur), 1 = taille normale
   const clampScale = v => (typeof v === 'number' && v >= 0.5 && v <= 2 ? v : 1);
-  const K = () => clampScale(state.symScale);
+  const K = () => 0.85 * clampScale(state.symScale);   // 100 % = ancienne taille à 85 %
   // largeur de la colonne des lettres, en % (séparateur mobile)
   const clampSplit = v => (typeof v === 'number' && v >= 8 && v <= 60 ? v : 18);
   const applySplit = () => document.documentElement.style.setProperty('--split', clampSplit(state.split) + '%');
