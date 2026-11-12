@@ -603,11 +603,13 @@
   let drag = null;
   let lastCaseId = state.cases[0].id;
 
+  const redoStack = new Map();   // id de case -> états annulés (pour « Restaurer »)
   function mutate(c, fn) {
     const h = history.get(c.id) || [];
     h.push(JSON.stringify(c.shapes));
     if (h.length > 60) h.shift();
     history.set(c.id, h);
+    redoStack.delete(c.id);       // une nouvelle action efface ce qui pouvait être restauré
     fn();
     save();
     renderShapes(c);
@@ -615,7 +617,20 @@
   function undo(c) {
     const h = history.get(c.id);
     if (!h || !h.length) return;
+    const r = redoStack.get(c.id) || [];
+    r.push(JSON.stringify(c.shapes));
+    redoStack.set(c.id, r);
     c.shapes = JSON.parse(h.pop());
+    save();
+    renderShapes(c);
+  }
+  function redo(c) {
+    const r = redoStack.get(c.id);
+    if (!r || !r.length) return;
+    const h = history.get(c.id) || [];
+    h.push(JSON.stringify(c.shapes));
+    history.set(c.id, h);
+    c.shapes = JSON.parse(r.pop());
     save();
     renderShapes(c);
   }
@@ -1221,18 +1236,23 @@
       <div class="case-head">
         <span class="num">Figure ${idx + 1}</span>
         <div class="controls no-print">
-          <select data-k="size" title="Dimensions">
-            <option value="40">40 × 20</option><option value="60">60 × 20</option><option value="80">80 × 40</option>
-          </select>
-          <select data-k="orient" title="Orientation">
-            <option value="v">Verticale, C en haut</option><option value="v2">Verticale, C en bas</option>
-            <option value="h">Horizontale, C à droite</option><option value="h2">Horizontale, C à gauche</option>
-          </select>
-          <button class="icon" data-act="undo" title="Annuler (Ctrl+Z)">↶</button>
-          <button class="icon" data-act="clear" title="Effacer le dessin">⌧</button>
-          <button class="icon" data-act="up" title="Monter">↑</button>
-          <button class="icon" data-act="down" title="Descendre">↓</button>
-          <button class="icon danger" data-act="del" title="Supprimer la figure">✕</button>
+          <div class="ctl-row">
+            <select data-k="size" title="Dimensions">
+              <option value="40">40 × 20</option><option value="60">60 × 20</option><option value="80">80 × 40</option>
+            </select>
+            <select data-k="orient" title="Orientation">
+              <option value="v">Verticale, C en haut</option><option value="v2">Verticale, C en bas</option>
+              <option value="h">Horizontale, C à droite</option><option value="h2">Horizontale, C à gauche</option>
+            </select>
+          </div>
+          <div class="ctl-row">
+            <button class="icon" data-act="undo" title="Annuler (Ctrl+Z ou clic droit)">↶</button>
+            <button class="icon" data-act="redo" title="Restaurer (Ctrl+Y)">↷</button>
+            <button class="icon" data-act="clear" title="Effacer le dessin">⌧</button>
+            <button class="icon" data-act="up" title="Monter">↑</button>
+            <button class="icon" data-act="down" title="Descendre">↓</button>
+            <button class="icon danger" data-act="del" title="Supprimer la figure">✕</button>
+          </div>
         </div>
       </div>
       <div class="drawing">
@@ -1309,6 +1329,7 @@
       const i = state.cases.indexOf(c);
       switch (b.dataset.act) {
         case 'undo': undo(c); break;
+        case 'redo': redo(c); break;
         case 'clear':
           if (c.shapes.length && confirm('Effacer tout le dessin de cette case ?')) mutate(c, () => { c.shapes = []; });
           break;
@@ -1635,7 +1656,7 @@
   function bindFileActions() {
     $('#btn-new').onclick = () => {
       if (!confirm('Commencer une nouvelle reprise ? Pensez à enregistrer la reprise actuelle.')) return;
-      state = newReprise(); history.clear(); save(); renderAll();
+      state = newReprise(); history.clear(); redoStack.clear(); save(); renderAll();
     };
     $('#btn-save').onclick = download;
     $('#btn-print').onclick = () => { buildPrint(); window.print(); };
@@ -1662,7 +1683,7 @@
       try {
         state = normalize(JSON.parse(await f.text()));
         if (!state.cases.length) state.cases.push(newCase());
-        history.clear(); save(); renderAll();
+        history.clear(); redoStack.clear(); save(); renderAll();
       } catch (err) {
         alert('Impossible d’ouvrir ce fichier : ' + err.message);
       }
@@ -1673,9 +1694,10 @@
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
       if (e.key === 'Escape') cancelDrag();
       if (e.key === 'Enter' && drag && drag.tool === 'line') { e.preventDefault(); finishLine(); }
-      if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      const key = e.key.toLowerCase();
+      if (!typing && (e.ctrlKey || e.metaKey) && (key === 'z' || key === 'y')) {
         const c = state.cases.find(x => x.id === lastCaseId);
-        if (c) { e.preventDefault(); undo(c); }
+        if (c) { e.preventDefault(); (key === 'y' || e.shiftKey) ? redo(c) : undo(c); }
       }
     });
   }

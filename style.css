@@ -421,3 +421,8 @@ body.tool-eraser .shape:hover { opacity: .35; }
 #gaits .gpill { width: 100%; }
 #gaits-x .gpill { width: 100%; }
 #gaits .gdot { width: 24px; height: 24px; min-width: 24px; }
+
+/* En-tête de figure : listes sur une ligne, boutons sur la suivante */
+.case-head .controls { flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
+.case-head .num { margin-right: 0; width: 100%; }
+.ctl-row { display: flex; gap: 4px; flex-wrap: wrap; }
