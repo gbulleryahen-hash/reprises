@@ -452,7 +452,18 @@
   }
   // taille des symboles (curseur), 1 = taille normale
   const clampScale = v => (typeof v === 'number' && v >= 0.5 && v <= 2 ? v : 1);
-  const K = () => 0.85 * clampScale(state.symScale);   // 100 % = ancienne taille à 85 %
+  // caseK : correction par carrière pour que traits et symboles aient à l'écran la même taille
+  // que sur une 60 × 20 (une vignette de taille fixe agrandit davantage une petite carrière).
+  let caseK = 1;
+  const K = () => 0.85 * clampScale(state.symScale) * caseK;   // 100 % = ancienne taille à 85 %
+  function sizeFactor(c) {
+    const g = geom(c.size, c.orient), ref = geom(60, String(c.orient).startsWith('h') ? 'h' : 'v');
+    let w = 380, h = 460;
+    const r = refs.get(c.id);
+    if (r) { const b = r.svg.getBoundingClientRect(); if (b.width > 0 && b.height > 0) { w = b.width; h = b.height; } }
+    const fit = x => Math.min(w / x.W, h / x.H);
+    return fit(ref) / fit(g);
+  }
   // largeur de la colonne des lettres, en % (séparateur mobile)
   const clampSplit = v => (typeof v === 'number' && v >= 8 && v <= 60 ? v : 18);
   const applySplit = () => document.documentElement.style.setProperty('--split', clampSplit(state.split) + '%');
@@ -866,7 +877,9 @@
     const r = refs.get(c.id);
     if (!r) return;
     const g = geom(c.size, c.orient);
-    r.shapes.innerHTML = c.shapes.map((sh, i) => shapeSvg(sh, g, i)).join('');
+    caseK = sizeFactor(c);
+    try { r.shapes.innerHTML = c.shapes.map((sh, i) => shapeSvg(sh, g, i)).join(''); }
+    finally { caseK = 1; }
   }
 
   // ---------------------------------------------------------------- Zoom (molette, ×3 max) et déplacement de la vue
@@ -919,6 +932,10 @@
 
   // ---------------------------------------------------------------- Aperçu pendant le tracé
   function drawPreview(c) {
+    caseK = sizeFactor(c);
+    try { drawPreviewIn(c); } finally { caseK = 1; }
+  }
+  function drawPreviewIn(c) {
     const r = refs.get(c.id);
     if (!drag || drag.caseId !== c.id) { r.preview.innerHTML = ''; return; }
     const g = geom(c.size, c.orient);
@@ -1270,6 +1287,8 @@
     wrap.appendChild(add);
     $('#title').value = state.title;
     updateTotal();
+    // une fois les vignettes en place, on redessine avec leur taille réelle (épaisseurs homogènes)
+    requestAnimationFrame(() => state.cases.forEach(renderShapes));
     $('#sym-scale').value = K();
     $('#sym-scale-val').textContent = Math.round(K() * 100) + ' %';
     applySplit();
@@ -1586,6 +1605,9 @@
       }
     });
   }
+
+  let resizeT = 0;
+  window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => state.cases.forEach(renderShapes), 200); });
 
   // ---------------------------------------------------------------- Démarrage
   buildToolbar();
