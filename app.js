@@ -843,6 +843,9 @@
     const ref = closed ? g.to(sh.c) : g.to({ x: g.w / 2, y: g.L / 2 });
     const tr = makeTrack(poly);
     const sc = MOVE_SC * K();
+    // axe des grands côtés à l'écran
+    const o = g.to({ x: 0, y: 0 }), o1 = g.to({ x: 0, y: 1 });
+    const ey = { x: (o1.x - o.x) / S, y: (o1.y - o.y) / S };
     const G = MOVE_GEOM[move] || MOVE_GEOM.droit;
     const polys = glyphPolys(G.d);
     const [x0, x1] = moveExtent(move), mid = (x0 + x1) / 2;
@@ -853,6 +856,18 @@
       if (move === 'pasdecote') {   // perpendiculaire au tracé, tête vers l'extérieur
         const ang = Math.atan2(pc.ty, pc.tx) * 180 / Math.PI;
         return `<g transform="translate(${r2(pc.x)},${r2(pc.y)}) rotate(${r2(ang)}) scale(1,${side}) rotate(-90) scale(${r2(sc)})">${moveGlyph(move, col)}</g>`;
+      }
+      if (move === 'cession' || move === 'appuyer') {
+        // cheval parallèle au grand côté : la flèche reste parallèle au grand côté,
+        // et part du tracé (sa queue est posée dessus)
+        const k = pc.tx * ey.x + pc.ty * ey.y;
+        if (Math.abs(k) > 0.2) {
+          const dir = { x: ey.x * Math.sign(k), y: ey.y * Math.sign(k) };
+          const half = (x1 - x0) * sc * Math.abs(k) / 2;            // projection de la flèche sur le tracé
+          const p0 = tr.at(dc - half);
+          const ang = Math.atan2(dir.y, dir.x) * 180 / Math.PI;
+          return `<g transform="translate(${r2(p0.x)},${r2(p0.y)}) rotate(${r2(ang)}) scale(${r2(sc)}) translate(${r2(-x0)},0)">${moveGlyph(move, col)}</g>`;
+        }
       }
       // chaque point du symbole est reporté le long du tracé : il part du tracé et en suit la courbe
       const warp = (x, y) => {
