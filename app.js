@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111507';
+  const APP_V = '2026111508';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -70,14 +70,15 @@
     { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap ou clic droit pour annuler. Les angles sont arrondis en arcs de 6 m.' },
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Portion de cercle du diamètre choisi : cliquez au départ, puis tournez autour avec la souris (quart, demi, trois quarts… par pas de 45°) et cliquez pour valider. Partant du bout d’un tracé ou de la piste, l’arc continue dans son alignement. Maj : angle libre. Échap ou clic droit pour annuler.' },
-    { id: 'serp',   label: '∿ Serpentine', hint: 'Choisissez le nombre de boucles, cliquez près de A ou de C, puis placez la souris du côté de la première boucle et cliquez pour valider. Les demi-cercles sont calculés pour remplir exactement la carrière. Échap pour annuler.' },
+    { id: 'serp',   label: '∿ Serpentine', hint: 'Choisissez le nombre de boucles et la largeur, cliquez près de A ou de C, puis placez la souris du côté de la première boucle et cliquez pour valider. Demi-cercles qui touchent la piste, reliés par des lignes droites. Échap pour annuler.' },
+    { id: 'cc',     label: '⟩ Contre-changement', hint: 'Contre-changement de main : cliquez au départ (ex. F), puis à l’arrivée (ex. M), puis déplacez la souris jusqu’à la ligne voulue (milieu, quart, autre piste) et cliquez. Choisissez la longueur du passage droit au milieu. Échap pour annuler.' },
     { id: 'edit',   label: '✥ Modifier',   hint: 'Faites glisser une poignée pour déplacer un point, une extrémité ou un symbole (elle s’accroche aux lettres). Une jonction déplace les deux tracés ensemble ; un arc garde sa forme et son diamètre s’ajuste. Échap pendant le glissement pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
   const TOOL_ICONS = {
     free: 'M4 17c3-8 6 4 9-3s5-6 7-4', line: 'M5 19L19 5', circle: 'M12 5a7 7 0 1 0 0.01 0',
-    arc: 'M5 17a7 7 0 0 1 14 0', serp: 'M12 3c5 0 5 6 0 6s-5 6 0 6 5 6 0 6', edit: 'M6 4l5 15 2.2-6.3L19.5 10.5zM14 14l5 5', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
+    arc: 'M5 17a7 7 0 0 1 14 0', serp: 'M5 4h7a4 4 0 0 1 0 8H12a4 4 0 0 0 0 8h7', cc: 'M7 3l9 7v4l-9 7', edit: 'M6 4l5 15 2.2-6.3L19.5 10.5zM14 14l5 5', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
   };
   const toolName = t => t.label.replace(/^\S+\s/, '');
 
@@ -336,20 +337,43 @@
   const wrapAng = t => Math.atan2(Math.sin(t), Math.cos(t));
 
   // ---------------------------------------------------------------- Serpentine
-  // n demi-cercles égaux qui remplissent toute la longueur, en partant de A (s = 1) ou de C (s = -1) ;
+  // n boucles égales sur toute la longueur, en partant de A (s = 1) ou de C (s = -1).
+  // Chaque boucle est un demi-cercle qui touche le bord choisi (largeur wf × largeur de la carrière),
+  // reliées par des lignes droites qui traversent la carrière parallèlement aux petits côtés.
   // side = 1 : première boucle côté F (x croissant), -1 : côté K
-  function serpShapes(c, s, side, n) {
-    const L = c.size, h = arenaW(L) / 2, d = L / n, r = d / 2, y0 = s > 0 ? 0 : L;
-    const r3 = v => Math.round(v * 1000) / 1000;
-    const out = [];
+  function serpShapes(c, s, side, n, wf) {
+    const L = c.size, w = arenaW(L), h = w / 2, d = L / n, r = d / 2, y0 = s > 0 ? 0 : L;
+    const W = w * wf, xl = h - W / 2, xr = h + W / 2;
+    const r3 = v => Math.round(v * 1000) / 1000, P = (x, y) => pt(r3(x), r3(y));
+    const out = [], line = (p, q) => { if (dist(p, q) > 0.05) out.push({ t: 'line', g: ui.gait, m: ui.move, p: [p, q] }); };
+    let cur = P(h, y0);
     for (let i = 0; i < n; i++) {
-      const ya = y0 + s * i * d, yb = ya + s * d, sd = side * (i % 2 ? -1 : 1);
-      out.push({ t: 'arc', g: ui.gait, m: ui.move, a: pt(h, r3(ya)), b: pt(h, r3(yb)), r: r3(r),
-                 c: pt(h, r3(ya + s * r)), sw: r3(sd * s * Math.PI) });
+      const si = side * (i % 2 ? -1 : 1), cx = si > 0 ? xr - r : xl + r;
+      const ya = y0 + s * i * d, yb = ya + s * d, A = P(cx, ya), B = P(cx, yb);
+      line(cur, A);
+      out.push({ t: 'arc', g: ui.gait, m: ui.move, a: A, b: B, r: r3(r), c: P(cx, ya + s * r), sw: r3(si * s * Math.PI) });
+      cur = B;
     }
+    line(cur, P(h, s > 0 ? L : 0));
     return out;
   }
-  const serpFits = (c, n) => c.size / n <= arenaW(c.size) + 0.01;
+  const serpFits = (c, n, wf) => c.size / n <= arenaW(c.size) * wf + 0.01;
+  const SERP_W = [[1, 'Piste à piste'], [0.75, '¾ de la largeur'], [0.5, 'D’un quart à l’autre']];
+
+  // ---------------------------------------------------------------- Contre-changement de main
+  // départ et arrivée (en général sur la même piste), pointe jusqu'à la ligne choisie,
+  // avec un court passage droit au milieu (redresser avant de changer de pli)
+  function ccShapes(c, a, b, m) {
+    const w = arenaW(c.size), r3 = v => Math.round(v * 1000) / 1000;
+    const midY = (a.y + b.y) / 2, dy = Math.sign(b.y - a.y) || 1;
+    let ax = m.x;
+    for (const qx of [0, w / 4, w / 2, w * 3 / 4, w]) if (Math.abs(m.x - qx) < 1.5) ax = qx;
+    ax = Math.max(0, Math.min(w, ax));
+    const f = Math.min(ui.ccFlat, Math.abs(b.y - a.y) * 0.5) / 2;
+    const pts = f > 0.05 ? [a, pt(r3(ax), r3(midY - dy * f)), pt(r3(ax), r3(midY + dy * f)), b] : [a, pt(r3(ax), r3(midY)), b];
+    return [{ t: 'line', g: ui.gait, m: ui.move, p: pts }];
+  }
+  const CC_FLAT = [0, 4, 6, 8];
 
   // ---------------------------------------------------------------- Modifier (poignées)
   // ancien arc (a, b, r, side) -> forme centre + angle balayé, pour pouvoir le déformer
@@ -777,7 +801,7 @@
   // Réglages de la barre d'outils : ils restent enclenchés (et sont mémorisés)
   const UI_KEY = 'reprises.outils';
   const LOOPS = [2, 3, 4, 5, 6];
-  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true, loops: 3 };
+  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true, loops: 3, serpW: 1, ccFlat: 4 };
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
     // l'outil n'est pas repris d'une visite à l'autre : on démarre toujours sur « Ligne »
@@ -786,6 +810,8 @@
     if (DIAMS.includes(saved.diam)) ui.diam = saved.diam;
     if (typeof saved.snap === 'boolean') ui.snap = saved.snap;
     if (LOOPS.includes(saved.loops)) ui.loops = saved.loops;
+    if ([1, 0.75, 0.5].includes(saved.serpW)) ui.serpW = saved.serpW;
+    if ([0, 4, 6, 8].includes(saved.ccFlat)) ui.ccFlat = saved.ccFlat;
   } catch { /* rien */ }
   const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* rien */ } };
   const history = new Map();   // id de case -> piles d'états précédents
@@ -1273,12 +1299,16 @@
       s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${symScale(sh.k)})">${glyph(sh.k, scol)}</g>`;
     } else if (drag.tool === 'serp') {
       const n = ui.loops, side = drag.cursor ? (drag.cursor.x >= arenaW(c.size) / 2 ? 1 : -1) : 1;
-      if (serpFits(c, n)) {
-        s = `<g opacity=".8">${serpShapes(c, drag.s, side, n).map(sh => shapeSvg(sh, g, -1)).join('')}</g>`;
+      if (serpFits(c, n, ui.serpW)) {
+        s = `<g opacity=".8">${serpShapes(c, drag.s, side, n, ui.serpW).map(sh => shapeSvg(sh, g, -1)).join('')}</g>`;
       } else {
         const q = g.to(pt(arenaW(c.size) / 2, c.size / 2));
         s = `<text x="${q.x}" y="${q.y}" text-anchor="middle" font-size="15" font-weight="700" fill="#b3261e" stroke="#fff" stroke-width="4" paint-order="stroke">${n} boucles : trop larges pour cette carrière</text>`;
       }
+    } else if (drag.tool === 'cc') {
+      const dot = q => { const z = g.to(q); return `<circle cx="${z.x}" cy="${z.y}" r="3.5" fill="${col}"/>`; };
+      if (drag.phase === 'cc1') s = dot(drag.a) + `<path d="${polyPath([drag.a, drag.cursor].map(g.to))}" ${st} stroke-dasharray="6 5"/>`;
+      else s = `<g opacity=".8">${ccShapes(c, drag.a, drag.b, drag.cursor).map(sh => shapeSvg(sh, g, -1)).join('')}</g>`;
     } else if (drag.tool === 'free') {
       s = `<path d="${polyPath(drag.pts.map(g.to))}" ${st}/>`;
     } else if (drag.tool === 'line') {
@@ -1395,12 +1425,28 @@
       if (!drag) {
         drag = { caseId: c.id, tool: 'serp', phase: 'serp', s: raw.y < c.size / 2 ? 1 : -1, cursor: raw };
         drawPreview(c);
-      } else if (drag.phase === 'serp' && serpFits(c, ui.loops)) {
-        const side = drag.cursor.x >= arenaW(c.size) / 2 ? 1 : -1, sh = serpShapes(c, drag.s, side, ui.loops);
+      } else if (drag.phase === 'serp' && serpFits(c, ui.loops, ui.serpW)) {
+        const side = drag.cursor.x >= arenaW(c.size) / 2 ? 1 : -1, sh = serpShapes(c, drag.s, side, ui.loops, ui.serpW);
         drag = null;
         drawPreview(c);
         mutate(c, () => c.shapes.push(...sh));
       }
+      e.preventDefault();
+      return;
+    }
+    if (tool === 'cc') {
+      const q = pt(p.x, p.y);
+      if (!drag) drag = { caseId: c.id, tool: 'cc', phase: 'cc1', a: q, cursor: q };
+      else if (drag.phase === 'cc1') { if (dist(q, drag.a) > 2) { drag.b = q; drag.phase = 'cc2'; drag.cursor = raw; } }
+      else if (drag.phase === 'cc2') {
+        const sh = ccShapes(c, drag.a, drag.b, drag.cursor);
+        drag = null;
+        drawPreview(c);
+        mutate(c, () => c.shapes.push(...sh));
+        e.preventDefault();
+        return;
+      }
+      drawPreview(c);
       e.preventDefault();
       return;
     }
@@ -1539,6 +1585,7 @@
       renderShapes(c);
       return;
     }
+    if (drag.phase === 'cc1') { const q = snap(raw, c); drag.cursor = pt(q.x, q.y); drawPreview(c); return; }
     if (drag.phase) { drag.cursor = raw; drawPreview(c); return; }
     if (drag.tool === 'free') drag.pts.push(raw);
     else if (drag.tool === 'line') { const p = snap(raw, c); drag.cursor = pt(p.x, p.y); }
@@ -1800,6 +1847,10 @@
     $('#diams').innerHTML = DIAMS.map(d => `<button data-diam="${d}">${d} m</button>`).join('');
     $('#loops').innerHTML = LOOPS.map(n => `<button data-loops="${n}" title="${n} boucles">${n}</button>`).join('');
     $('#loops').insertAdjacentHTML('beforebegin', '<span class="sublabel">Nombre de boucles</span>');
+    $('#serpw').innerHTML = SERP_W.map(([f, t]) => `<button data-serpw="${f}" title="${t}">${f === 1 ? 'Piste à piste' : f === 0.75 ? '¾' : '½'}</button>`).join('');
+    $('#serpw').insertAdjacentHTML('beforebegin', '<span class="sublabel">Largeur</span>');
+    $('#ccflat').innerHTML = CC_FLAT.map(v => `<button data-ccflat="${v}">${v ? v + ' m' : 'aucun'}</button>`).join('');
+    $('#ccflat').insertAdjacentHTML('beforebegin', '<span class="sublabel">Passage droit au milieu</span>');
 
     $('.toolbar').addEventListener('click', e => {
       const b = e.target.closest('button');
@@ -1813,6 +1864,8 @@
       }
       if (b.dataset.diam) ui.diam = +b.dataset.diam;
       if (b.dataset.loops) ui.loops = +b.dataset.loops;
+      if (b.dataset.serpw) ui.serpW = +b.dataset.serpw;
+      if (b.dataset.ccflat) ui.ccFlat = +b.dataset.ccflat;
       saveUi();
       refreshToolbar();
       state.cases.forEach(drawPreview);            // poignées de « Modifier », aperçu de la serpentine
@@ -1864,6 +1917,9 @@
     $('#diam-group').style.display = (ui.tool === 'circle' || ui.tool === 'arc') ? '' : 'none';
     $('#serp-group').style.display = ui.tool === 'serp' ? '' : 'none';
     document.querySelectorAll('[data-loops]').forEach(b => b.classList.toggle('active', +b.dataset.loops === ui.loops));
+    document.querySelectorAll('[data-serpw]').forEach(b => b.classList.toggle('active', +b.dataset.serpw === ui.serpW));
+    document.querySelectorAll('[data-ccflat]').forEach(b => b.classList.toggle('active', +b.dataset.ccflat === ui.ccFlat));
+    $('#cc-group').style.display = ui.tool === 'cc' ? '' : 'none';
     document.body.classList.toggle('tool-edit', ui.tool === 'edit');
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
