@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111501';
+  const APP_V = '2026111502';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -530,7 +530,7 @@
 
   // ---------------------------------------------------------------- État
   const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, textL: '', textR: '', note: '', shapes: [] });
-  const newReprise = () => ({ version: 3, title: '', cases: [newCase()] });
+  const newReprise = () => ({ version: 3, scaleV: 2, title: '', symScale: 1, lineW: 1, cases: [newCase()] });
 
   // Repère des dessins (version 3, comme la version 1) : 0 = piste, clôture dessinée 1 m plus loin.
   // - version 2 (essai du 12/11) : 0 = clôture, piste à 1 m → on revient au repère de la piste ;
@@ -589,7 +589,9 @@
   // caseK : correction par carrière pour que traits et symboles aient à l'écran la même taille
   // que sur une 60 × 20 (une vignette de taille fixe agrandit davantage une petite carrière).
   let caseK = 1;
-  const K = () => 0.85 * clampScale(state.symScale) * caseK;   // 100 % = ancienne taille à 85 %
+  const K = () => 0.85 * 1.4 * clampScale(state.symScale) * caseK;   // 100 % = ancienne taille à 140 % (×0,85)
+  const clampLine = v => (typeof v === 'number' && v >= 0.4 && v <= 2.5 ? v : 1);
+  const LW = () => clampLine(state.lineW);
   function sizeFactor(c) {
     const g = geom(c.size, c.orient), ref = geom(60, String(c.orient).startsWith('h') ? 'h' : 'v');
     let w = 380, h = 460;
@@ -609,7 +611,11 @@
       title: String(data.title || ''),
       page: data.page === 'portrait' ? 'portrait' : 'paysage',
       split: clampSplit(data.split),
-      symScale: clampScale(data.symScale),
+      // scaleV 2 : 100 % = ancien 140 %. Les anciens fichiers gardent exactement leur aspect.
+      scaleV: 2,
+      symScale: data.scaleV === 2 ? clampScale(data.symScale)
+        : clampScale(Math.round(clampScale(data.symScale) / 1.4 * 100) / 100),
+      lineW: clampLine(data.lineW),
       cases: data.cases.map(c => ({
         id: uid(),
         size: [40, 60, 80].includes(c.size) ? c.size : 60,
@@ -848,13 +854,13 @@
   // piaffer = ellipses ; reculer = doubles flèches. single : un seul motif, centré (icônes).
   // slot > 0 : laisse après chaque motif une place libre (pour le symbole d'un déplacement latéral)
   // et renvoie les distances de ces places dans « slots ».
-  function gaitMotif(poly, gait, sc, single, slot) {
+  function gaitMotif(poly, gait, sc, single, slot, lw = 1) {
     const segs = []; let L = 0;
     for (let i = 0; i < poly.length - 1; i++) {
       const a = poly[i], b = poly[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
       if (len > 1e-6) { segs.push({ a, b, len, start: L }); L += len; }
     }
-    const sw = r2(gait.w * sc);
+    const sw = r2(gait.w * sc * lw);   // lw : curseur « largeur des traits »
     if (!segs.length) return { s: '', f: '', w: sw, c: gait.color };
     const at = d => {
       d = Math.max(0, Math.min(L, d));
@@ -906,20 +912,22 @@
     const u0 = u;
     let K = MK(u);
     if (!K) return { s: '', f: '', w: sw, c: gait.color };
-    let gap = gait.kind === 'piaffer' ? erx : 1.3 * u + 2 * sc;
+    // écart entre deux motifs : du même ordre que les espaces à l'intérieur du motif
+    const gapOf = uu => 0.95 * uu + 1.2 * sc;
+    let gap = gait.kind === 'piaffer' ? erx : gapOf(u);
     if (slot > 0 && gait.kind !== 'piaffer') {
       // motif, place libre, motif, place libre… en alternance
       // motif, symbole, motif, symbole… motif : le premier motif part du début du tracé,
       // la dernière flèche arrive pile à la fin ; l'espace restant est réparti également.
-      let gs0 = gap * 0.35;                       // symbole tout près des flèches
+      let gs0 = gap * 0.5;                        // symbole tout près des flèches
       const unit = K.len + slot + 2 * gs0;
       let count = Math.max(2, Math.round((L + slot + 2 * gs0) / unit));
       // les motifs s'étirent ou se resserrent un peu pour combler l'espace au lieu de laisser des trous
       if (A_U && count > 1) {
         const n = count, base = K.len - A_U * u0;
-        const u2 = (L - n * base - (n - 1) * (slot + 0.7 * 2 * sc)) / (n * A_U + (n - 1) * 0.7 * 1.3);
-        u = Math.max(0.75 * u0, Math.min(1.35 * u0, u2));
-        K = MK(u); gs0 = 0.35 * (1.3 * u + 2 * sc);
+        const u2 = (L - n * base - (n - 1) * (slot + 1.2 * sc)) / (n * A_U + (n - 1) * 0.95);
+        u = Math.max(0.8 * u0, Math.min(1.25 * u0, u2));
+        K = MK(u); gs0 = 0.5 * gapOf(u);
       }
       let gs = 0;
       while (count > 1) {
@@ -942,18 +950,19 @@
       return { s: S, f: F, w: sw, c: gait.color, slots };
     }
     if (gait.kind === 'piaffer') single = true;   // le piaffer est sur place : une seule ellipse
-    // le premier motif part du début, la dernière flèche arrive à la fin ; écarts répartis également
-    let count = single ? 1 : Math.max(1, Math.round((L + gap) / (K.len + gap)));
+    // un demi-écart au début et à la fin : d'un tracé au suivant, l'écart est le même qu'à l'intérieur
+    const off = single ? 0 : Math.min(gap / 2, L * 0.1), Le = L - 2 * off;
+    let count = single ? 1 : Math.max(1, Math.round((Le + gap) / (K.len + gap)));
     if (A_U && count > 1) {   // étirement léger des motifs pour que les écarts restent réguliers et serrés
       const base = K.len - A_U * u0;
-      const u2 = (L - count * base - (count - 1) * 2 * sc) / (count * A_U + (count - 1) * 1.3);
-      u = Math.max(0.75 * u0, Math.min(1.35 * u0, u2));
-      K = MK(u); gap = 1.3 * u + 2 * sc;
+      const u2 = (Le - count * base - (count - 1) * 1.2 * sc) / (count * A_U + (count - 1) * 0.95);
+      u = Math.max(0.8 * u0, Math.min(1.25 * u0, u2));
+      K = MK(u); gap = gapOf(u);
     }
     let g2 = gap;
-    while (count > 1) { g2 = (L - count * K.len) / (count - 1); if (g2 >= gap * 0.5) break; count--; }
+    while (count > 1) { g2 = (Le - count * K.len) / (count - 1); if (g2 >= gap * 0.6) break; count--; }
     if (count === 1) K.draw(Math.max(0, (L - K.len) / 2));
-    else { let st = 0; for (let i = 0; i < count; i++) { K.draw(st); st += K.len + g2; } }
+    else { let st = off; for (let i = 0; i < count; i++) { K.draw(st); st += K.len + g2; } }
     return { s: S, f: F, w: sw, c: gait.color };
   }
   const MOTIF_SC = 1.25;   // taille des motifs dans les vignettes (multipliée par le curseur)
@@ -1073,7 +1082,7 @@
         const poly = screenPolyline(sh, g);
         // déplacement latéral : on alterne motif et symbole au lieu de les superposer
         const lateral = MOVE_IDS.includes(sh.m) && sh.m !== 'droit';
-        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? lateralSlot(sh.m) : 0);
+        const m = gaitMotif(poly, gait, MOTIF_SC * K(), false, lateral ? lateralSlot(sh.m) : 0, LW());
         lastSlots = m.slots || null;
         vis = `<path d="${m.s}" fill="none" stroke="${m.c}" stroke-width="${m.w}" stroke-linecap="round" stroke-linejoin="round"/>` +
           `<path d="${m.f}" fill="${m.c}"/>`;
@@ -1599,8 +1608,10 @@
     updateTotal();
     // une fois les vignettes en place, on redessine avec leur taille réelle (épaisseurs homogènes)
     requestAnimationFrame(() => state.cases.forEach(renderShapes));
-    $('#sym-scale').value = K();
-    $('#sym-scale-val').textContent = Math.round(K() * 100) + ' %';
+    $('#sym-scale').value = clampScale(state.symScale);
+    $('#sym-scale-val').textContent = Math.round(clampScale(state.symScale) * 100) + ' %';
+    $('#line-w').value = LW();
+    $('#line-w-val').textContent = Math.round(LW() * 100) + ' %';
     applySplit();
     $('#page-orient').value = state.page === 'portrait' ? 'portrait' : 'paysage';
   }
@@ -1655,6 +1666,13 @@
     };
     $('#sym-scale').onchange = save;
     $('#sym-scale').ondblclick = () => { state.symScale = 1; renderAll(); save(); };
+    $('#line-w').oninput = e => {
+      state.lineW = clampLine(+e.target.value);
+      $('#line-w-val').textContent = Math.round(state.lineW * 100) + ' %';
+      state.cases.forEach(renderShapes);
+    };
+    $('#line-w').onchange = save;
+    $('#line-w').ondblclick = () => { state.lineW = 1; renderAll(); save(); };
     $('#snap').checked = ui.snap;
     $('#snap').onchange = e => { ui.snap = e.target.checked; saveUi(); };
 
