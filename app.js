@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111512';
+  const APP_V = '2026111513';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -71,7 +71,7 @@
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Portion de cercle du diamètre choisi : cliquez au départ, puis tournez autour avec la souris (quart, demi, trois quarts… par pas de 45°) et cliquez pour valider. Partant du bout d’un tracé ou de la piste, l’arc continue dans son alignement. Maj : angle libre. Échap ou clic droit pour annuler.' },
     { id: 'serp',   label: '∿ Serpentine', hint: 'Choisissez le nombre de boucles et la largeur, cliquez près de A ou de C, puis placez la souris du côté de la première boucle et cliquez pour valider. Demi-cercles qui touchent la piste, reliés par des lignes droites. Échap pour annuler.' },
-    { id: 'cc',     label: '⟩ Contre-changement', hint: 'Contre-changement de main / zigzag : choisissez le nombre de pointes, cliquez au départ (ex. F, ou D sur la ligne du milieu), puis à l’arrivée (ex. M, ou G), puis déplacez la souris jusqu’à la ligne voulue et cliquez. Du milieu au milieu, les pointes alternent de chaque côté. Échap pour annuler.' },
+    { id: 'cc',     label: '⟩ Contre-changement', hint: 'Contre-changement de main / zigzag : choisissez le nombre de pointes, cliquez au départ (ex. F, ou D sur la ligne du milieu), puis à l’arrivée (ex. M, ou G), puis déplacez la souris jusqu’à la ligne voulue et cliquez. Du milieu au milieu, les pointes alternent de chaque côté. Au galop, changement de pied à chaque pointe. Échap pour annuler.' },
     { id: 'move',   label: '✥ Déplacer',   hint: 'Faites glisser un tracé ou un symbole pour le déplacer en entier (son extrémité la plus proche s’accroche aux lettres). Maj + glisser : déplace toute la figure. Échap pendant le glissement pour annuler.' },
     { id: 'edit',   label: '⌖ Modifier',   hint: 'Faites glisser une poignée pour déplacer un point, une extrémité ou un symbole (elle s’accroche aux lettres). Une jonction déplace les deux tracés ensemble ; un arc garde sa forme et son diamètre s’ajuste. Échap pendant le glissement pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
@@ -386,7 +386,45 @@
         pts.push({ x: r3(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n)), y: r3(a.y + dy * (2 * k + 2) / (2 * n)), sharp: 1 });
     }
     pts.push(b);
-    return [{ t: 'line', g: ui.gait, m: ui.move, p: pts }];
+    const gt = gaitOf(ui.gait);
+    if (gt.kind !== 'galopD' && gt.kind !== 'galopG') return [{ t: 'line', g: ui.gait, m: ui.move, p: pts }];
+    // Au galop : une branche par direction, avec changement de pied en l'air à chaque pointe
+    // (et à chaque retour sur la piste). Le cheval galope sur le pied du côté où il se déplace :
+    // vers sa droite → galop à droite. En allant vers C, sa droite est le côté F (x croissant).
+    const keys = [a];
+    for (let k = 0; k < n; k++) {
+      const yc = a.y + dy * (2 * k + 1) / (2 * n);
+      keys.push(pt(mirror && k % 2 ? w - ax : ax, yc));
+      if (!mirror && k < n - 1) keys.push(pt(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n), a.y + dy * (2 * k + 2) / (2 * n)));
+    }
+    keys.push(b);
+    const full = filletPoints(pts, CORNER_R);
+    const cut = (y0, y1) => {           // morceau du tracé entre deux hauteurs (le tracé avance toujours dans le même sens)
+      const lo = Math.min(y0, y1), hi = Math.max(y0, y1), out = [];
+      const inside = q => q.y >= lo - 1e-9 && q.y <= hi + 1e-9;
+      for (let i = 0; i < full.length; i++) {
+        const q = full[i], prev = full[i - 1];
+        if (prev && (inside(q) !== inside(prev) || (!inside(q) && !inside(prev) && (prev.y - lo) * (q.y - hi) < 0))) {
+          for (const yy of [y0, y1]) {
+            if ((prev.y - yy) * (q.y - yy) < 0) {
+              const t = (yy - prev.y) / (q.y - prev.y);
+              out.push(pt(prev.x + (q.x - prev.x) * t, yy));
+            }
+          }
+        }
+        if (inside(q)) out.push(q);
+      }
+      out.sort((u, v) => (u.y - v.y) * sg);
+      return out.map(q => pt(r3(q.x), r3(q.y)));
+    };
+    const out = [];
+    for (let i = 0; i < keys.length - 1; i++) {
+      const lat = (keys[i + 1].x - keys[i].x) * sg;
+      const lead = lat > 0 ? 'galopD' : lat < 0 ? 'galopG' : gt.kind;
+      const p2 = cut(keys[i].y, keys[i + 1].y);
+      if (p2.length >= 2) out.push({ t: 'free', g: `${lead}_${gt.lv}`, m: ui.move, p: p2 });
+    }
+    return out;
   }
   const CC_N = [1, 2, 3, 4];
   const CC_FLAT = [0, 4, 6, 8];
