@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111506';
+  const APP_V = '2026111507';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -70,12 +70,14 @@
     { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap ou clic droit pour annuler. Les angles sont arrondis en arcs de 6 m.' },
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Portion de cercle du diamètre choisi : cliquez au départ, puis tournez autour avec la souris (quart, demi, trois quarts… par pas de 45°) et cliquez pour valider. Partant du bout d’un tracé ou de la piste, l’arc continue dans son alignement. Maj : angle libre. Échap ou clic droit pour annuler.' },
+    { id: 'serp',   label: '∿ Serpentine', hint: 'Choisissez le nombre de boucles, cliquez près de A ou de C, puis placez la souris du côté de la première boucle et cliquez pour valider. Les demi-cercles sont calculés pour remplir exactement la carrière. Échap pour annuler.' },
+    { id: 'edit',   label: '✥ Modifier',   hint: 'Faites glisser une poignée pour déplacer un point, une extrémité ou un symbole (elle s’accroche aux lettres). Une jonction déplace les deux tracés ensemble ; un arc garde sa forme et son diamètre s’ajuste. Échap pendant le glissement pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
   const TOOL_ICONS = {
     free: 'M4 17c3-8 6 4 9-3s5-6 7-4', line: 'M5 19L19 5', circle: 'M12 5a7 7 0 1 0 0.01 0',
-    arc: 'M5 17a7 7 0 0 1 14 0', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
+    arc: 'M5 17a7 7 0 0 1 14 0', serp: 'M12 3c5 0 5 6 0 6s-5 6 0 6 5 6 0 6', edit: 'M6 4l5 15 2.2-6.3L19.5 10.5zM14 14l5 5', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
   };
   const toolName = t => t.label.replace(/^\S+\s/, '');
 
@@ -195,10 +197,11 @@
     }
     return out.filter(Boolean).map(q => ({ n: 'fin', x: q.x, y: q.y }));
   }
-  function snap(p, c) {
+  function snap(p, c, excl) {
     if (!ui.snap) return { x: p.x, y: p.y };
     let best = null, bd = SNAP_R;
-    for (const s of shapeEnds(c).concat(snapPoints(c.size))) {
+    const ends = excl ? shapeEnds(c).filter(q => dist(q, excl) > 0.05) : shapeEnds(c);
+    for (const s of ends.concat(snapPoints(c.size))) {
       const d = dist(p, s);
       if (d < bd) { bd = d; best = s; }
     }
@@ -331,6 +334,82 @@
     return null;
   }
   const wrapAng = t => Math.atan2(Math.sin(t), Math.cos(t));
+
+  // ---------------------------------------------------------------- Serpentine
+  // n demi-cercles égaux qui remplissent toute la longueur, en partant de A (s = 1) ou de C (s = -1) ;
+  // side = 1 : première boucle côté F (x croissant), -1 : côté K
+  function serpShapes(c, s, side, n) {
+    const L = c.size, h = arenaW(L) / 2, d = L / n, r = d / 2, y0 = s > 0 ? 0 : L;
+    const r3 = v => Math.round(v * 1000) / 1000;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const ya = y0 + s * i * d, yb = ya + s * d, sd = side * (i % 2 ? -1 : 1);
+      out.push({ t: 'arc', g: ui.gait, m: ui.move, a: pt(h, r3(ya)), b: pt(h, r3(yb)), r: r3(r),
+                 c: pt(h, r3(ya + s * r)), sw: r3(sd * s * Math.PI) });
+    }
+    return out;
+  }
+  const serpFits = (c, n) => c.size / n <= arenaW(c.size) + 0.01;
+
+  // ---------------------------------------------------------------- Modifier (poignées)
+  // ancien arc (a, b, r, side) -> forme centre + angle balayé, pour pouvoir le déformer
+  function arcToSweep(sh) {
+    if (typeof sh.sw === 'number' && sh.c) return;
+    const P = arcPoints(sh.a, sh.b, sh.r, sh.side);
+    const p1 = P[0], p2 = P[P.length >> 1], p3 = P[P.length - 1];
+    const D = 2 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+    if (Math.abs(D) < 1e-9) return;
+    const n2 = q => q.x * q.x + q.y * q.y;
+    const cx = (n2(p1) * (p2.y - p3.y) + n2(p2) * (p3.y - p1.y) + n2(p3) * (p1.y - p2.y)) / D;
+    const cy = (n2(p1) * (p3.x - p2.x) + n2(p2) * (p1.x - p3.x) + n2(p3) * (p2.x - p1.x)) / D;
+    let sw = 0;
+    for (let i = 1; i < P.length; i++)
+      sw += wrapAng(Math.atan2(P[i].y - cy, P[i].x - cx) - Math.atan2(P[i - 1].y - cy, P[i - 1].x - cx));
+    sh.c = pt(cx, cy); sh.sw = sw; sh.a = P[0]; sh.b = P[P.length - 1];
+    delete sh.side;
+  }
+  // après déplacement d'une extrémité : même angle balayé, le rayon et le centre s'adaptent
+  function refitArc(sh) {
+    const dx = sh.b.x - sh.a.x, dy = sh.b.y - sh.a.y, l = Math.hypot(dx, dy);
+    if (l < 0.2 || Math.abs(Math.sin(sh.sw / 2)) < 1e-3) return;
+    const hc = l / 2, half = sh.sw / 2, k = hc * Math.cos(half) / Math.sin(half);
+    sh.c = pt((sh.a.x + sh.b.x) / 2 - dy / l * k, (sh.a.y + sh.b.y) / 2 + dx / l * k);
+    sh.r = Math.round(hc / Math.abs(Math.sin(half)) * 1000) / 1000;
+  }
+  // poignées : points des lignes, extrémités des tracés et des arcs, départ des cercles, symboles
+  function editHandles(c) {
+    const hs = [];
+    const add = (q, ref) => {
+      if (!q) return;
+      const h = hs.find(o => dist(o, q) < 0.05);
+      if (h) h.refs.push(ref); else hs.push({ x: q.x, y: q.y, refs: [ref] });
+    };
+    c.shapes.forEach((sh, i) => {
+      if (sh.t === 'line') sh.p.forEach((q, k) => add(q, { i, key: 'p', k }));
+      else if (sh.t === 'free' && sh.p.length) { add(sh.p[0], { i, key: 'p', k: 0 }); add(sh.p[sh.p.length - 1], { i, key: 'p', k: sh.p.length - 1 }); }
+      else if (sh.t === 'arc') { add(sh.a, { i, key: 'a' }); add(sh.b, { i, key: 'b' }); }
+      else if (sh.t === 'circle' && sh.a) add(sh.a, { i, key: 'circle' });
+      else if (sh.t === 'sym') add({ x: sh.x, y: sh.y }, { i, key: 'sym' });
+    });
+    return hs;
+  }
+  function applyEdit(shapes, refs, q, from) {
+    for (const ref of refs) {
+      const sh = shapes[ref.i];
+      if (!sh) continue;
+      if (ref.key === 'p') sh.p[ref.k] = pt(q.x, q.y);
+      else if (ref.key === 'sym') { sh.x = q.x; sh.y = q.y; }
+      else if (ref.key === 'circle') {
+        const dx = q.x - from.x, dy = q.y - from.y;
+        sh.a = pt(sh.a.x + dx, sh.a.y + dy); sh.c = pt(sh.c.x + dx, sh.c.y + dy);
+      } else if (ref.key === 'a' || ref.key === 'b') {
+        arcToSweep(sh);
+        sh[ref.key] = pt(q.x, q.y);
+        refitArc(sh);
+      }
+    }
+    return shapes;
+  }
 
   function arcPoints(a, b, r, side) {
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
@@ -697,7 +776,8 @@
   if (!state.cases.length) state.cases.push(newCase());
   // Réglages de la barre d'outils : ils restent enclenchés (et sont mémorisés)
   const UI_KEY = 'reprises.outils';
-  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true };
+  const LOOPS = [2, 3, 4, 5, 6];
+  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true, loops: 3 };
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
     // l'outil n'est pas repris d'une visite à l'autre : on démarre toujours sur « Ligne »
@@ -705,6 +785,7 @@
     if (MOVE_IDS.includes(saved.move)) ui.move = saved.move;
     if (DIAMS.includes(saved.diam)) ui.diam = saved.diam;
     if (typeof saved.snap === 'boolean') ui.snap = saved.snap;
+    if (LOOPS.includes(saved.loops)) ui.loops = saved.loops;
   } catch { /* rien */ }
   const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* rien */ } };
   const history = new Map();   // id de case -> piles d'états précédents
@@ -1115,6 +1196,7 @@
     caseK = sizeFactor(c);
     try { r.shapes.innerHTML = c.shapes.map((sh, i) => shapeSvg(sh, g, i)).join(''); }
     finally { caseK = 1; }
+    if (ui.tool === 'edit' || ui.tool === 'serp' || (drag && drag.caseId === c.id)) drawPreview(c);
   }
 
   // ---------------------------------------------------------------- Zoom (molette, ×3 max) et déplacement de la vue
@@ -1172,8 +1254,16 @@
   }
   function drawPreviewIn(c) {
     const r = refs.get(c.id);
-    if (!drag || drag.caseId !== c.id) { r.preview.innerHTML = ''; return; }
     const g = geom(c.size, c.orient);
+    if (ui.tool === 'edit' && (!drag || drag.caseId !== c.id || drag.tool === 'edit')) {
+      r.preview.innerHTML = editHandles(c).map(h => {
+        const q = g.to(h), on = drag && drag.h && dist(h, drag.cur || drag.h) < 0.05;
+        const junction = h.refs.length > 1;
+        return `<circle class="ehandle" cx="${q.x}" cy="${q.y}" r="${on ? 7 : junction ? 6 : 5}" fill="${junction ? '#1d1b18' : '#fff'}" stroke="#1d1b18" stroke-width="2"/>`;
+      }).join('');
+      return;
+    }
+    if (!drag || drag.caseId !== c.id) { r.preview.innerHTML = ''; return; }
     const col = gaitOf(ui.gait).color;
     const st = `fill="none" stroke="${col}" stroke-width="${STROKE}" stroke-linecap="round" stroke-linejoin="round" opacity=".7"`;
     let s = '';
@@ -1181,6 +1271,14 @@
       const sh = { k: drag.k, x: drag.a.x, y: drag.a.y, a: symAngle(drag) }, q = g.to(sh);
       const scol = BLACK_SYMBOLS.includes(sh.k) ? '#222' : col;
       s = `<g opacity=".6" transform="translate(${q.x},${q.y}) rotate(${r2(symScreenAngle(sh, g))}) scale(${symScale(sh.k)})">${glyph(sh.k, scol)}</g>`;
+    } else if (drag.tool === 'serp') {
+      const n = ui.loops, side = drag.cursor ? (drag.cursor.x >= arenaW(c.size) / 2 ? 1 : -1) : 1;
+      if (serpFits(c, n)) {
+        s = `<g opacity=".8">${serpShapes(c, drag.s, side, n).map(sh => shapeSvg(sh, g, -1)).join('')}</g>`;
+      } else {
+        const q = g.to(pt(arenaW(c.size) / 2, c.size / 2));
+        s = `<text x="${q.x}" y="${q.y}" text-anchor="middle" font-size="15" font-weight="700" fill="#b3261e" stroke="#fff" stroke-width="4" paint-order="stroke">${n} boucles : trop larges pour cette carrière</text>`;
+      }
     } else if (drag.tool === 'free') {
       s = `<path d="${polyPath(drag.pts.map(g.to))}" ${st}/>`;
     } else if (drag.tool === 'line') {
@@ -1236,6 +1334,7 @@
   function cancelDrag() {
     if (drag) {
       const c = state.cases.find(x => x.id === drag.caseId);
+      if (drag.tool === 'edit' && c && drag.moved) { c.shapes = JSON.parse(drag.before); drag = null; renderShapes(c); }
       drag = null;
       if (c) drawPreview(c);
     }
@@ -1279,6 +1378,32 @@
     const tool = ui.tool;
     if (drag && drag.caseId !== c.id) cancelDrag();
 
+    if (tool === 'edit') {
+      // poignée la plus proche (rayon de prise ~1,4 m)
+      let best = null, bd = 1.4;
+      for (const h of editHandles(c)) { const d = dist(h, raw); if (d < bd) { bd = d; best = h; } }
+      if (best) {
+        r.svg.setPointerCapture(e.pointerId);
+        drag = { caseId: c.id, tool: 'edit', h: pt(best.x, best.y), cur: pt(best.x, best.y), refs: best.refs,
+                 before: JSON.stringify(c.shapes), moved: false };
+        drawPreview(c);
+      }
+      e.preventDefault();
+      return;
+    }
+    if (tool === 'serp') {
+      if (!drag) {
+        drag = { caseId: c.id, tool: 'serp', phase: 'serp', s: raw.y < c.size / 2 ? 1 : -1, cursor: raw };
+        drawPreview(c);
+      } else if (drag.phase === 'serp' && serpFits(c, ui.loops)) {
+        const side = drag.cursor.x >= arenaW(c.size) / 2 ? 1 : -1, sh = serpShapes(c, drag.s, side, ui.loops);
+        drag = null;
+        drawPreview(c);
+        mutate(c, () => c.shapes.push(...sh));
+      }
+      e.preventDefault();
+      return;
+    }
     if (tool === 'eraser') {
       const t = e.target.closest('.shape');
       if (t) { const i = +t.dataset.i; mutate(c, () => c.shapes.splice(i, 1)); }
@@ -1405,6 +1530,15 @@
     showSnap(c, raw);
     if (!drag || drag.caseId !== c.id) return;
     if (drag.phase === 'sweep') { arcFollow(drag, raw, c, e.shiftKey); drawPreview(c); return; }
+    if (drag.tool === 'edit') {
+      const q = snap(raw, c, drag.h), np = pt(q.x, q.y);
+      if (!drag.moved && dist(np, drag.h) < 0.05) return;
+      drag.moved = true;
+      drag.cur = np;
+      c.shapes = applyEdit(JSON.parse(drag.before), drag.refs, np, drag.h);
+      renderShapes(c);
+      return;
+    }
     if (drag.phase) { drag.cursor = raw; drawPreview(c); return; }
     if (drag.tool === 'free') drag.pts.push(raw);
     else if (drag.tool === 'line') { const p = snap(raw, c); drag.cursor = pt(p.x, p.y); }
@@ -1422,6 +1556,20 @@
   }
 
   function onUp(e, c) {
+    if (drag && drag.caseId === c.id && drag.tool === 'edit') {
+      const d = drag;
+      drag = null;
+      if (d.moved) {                              // une seule étape d'annulation pour tout le glissement
+        const h = history.get(c.id) || [];
+        h.push(d.before);
+        if (h.length > 60) h.shift();
+        history.set(c.id, h);
+        redoStack.delete(c.id);
+        save();
+      }
+      renderShapes(c);
+      return;
+    }
     if (drag && drag.caseId === c.id && drag.phase === 'sweep' && drag.pressed) {
       drag.pressed = false;
       if (Math.abs(drag.sw) > 1e-3) commitArc(c);   // glisser-relâcher : l'arc est posé
@@ -1650,6 +1798,8 @@
     $('#gaits-x').innerHTML = SPECIAL_GAITS.map(id => GAIT[id]).map(g =>
       `<button class="gpill gfix" data-gait="${g.id}" title="${esc(g.label)}" aria-label="${esc(g.label)}" style="--c:${g.color}">${motifIcon(g, 40, 22)}</button>`).join('');
     $('#diams').innerHTML = DIAMS.map(d => `<button data-diam="${d}">${d} m</button>`).join('');
+    $('#loops').innerHTML = LOOPS.map(n => `<button data-loops="${n}" title="${n} boucles">${n}</button>`).join('');
+    $('#loops').insertAdjacentHTML('beforebegin', '<span class="sublabel">Nombre de boucles</span>');
 
     $('.toolbar').addEventListener('click', e => {
       const b = e.target.closest('button');
@@ -1662,8 +1812,10 @@
         if (ui.tool === 'eraser' || ui.tool.startsWith('sym:')) ui.tool = 'line';
       }
       if (b.dataset.diam) ui.diam = +b.dataset.diam;
+      if (b.dataset.loops) ui.loops = +b.dataset.loops;
       saveUi();
       refreshToolbar();
+      state.cases.forEach(drawPreview);            // poignées de « Modifier », aperçu de la serpentine
     });
     // curseur de taille des symboles (enregistré avec la reprise)
     $('#sym-scale').oninput = e => {
@@ -1710,6 +1862,9 @@
     }
     document.querySelectorAll('[data-diam]').forEach(b => b.classList.toggle('active', +b.dataset.diam === ui.diam));
     $('#diam-group').style.display = (ui.tool === 'circle' || ui.tool === 'arc') ? '' : 'none';
+    $('#serp-group').style.display = ui.tool === 'serp' ? '' : 'none';
+    document.querySelectorAll('[data-loops]').forEach(b => b.classList.toggle('active', +b.dataset.loops === ui.loops));
+    document.body.classList.toggle('tool-edit', ui.tool === 'edit');
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
     $('#hint').textContent = gaitOf(ui.gait).kind === 'piaffer' && t && t.id !== 'eraser'
