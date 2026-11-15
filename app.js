@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111505';
+  const APP_V = '2026111506';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -928,36 +928,31 @@
     const gapOf = uu => 0.95 * uu + 1.2 * sc;
     let gap = gait.kind === 'piaffer' ? erx : gapOf(u);
     if (slot > 0 && gait.kind !== 'piaffer') {
-      // motif, place libre, motif, place libre… en alternance
-      // motif, symbole, motif, symbole… motif : le premier motif part du début du tracé,
+      // symbole, motif, symbole, motif… : on commence par le symbole du déplacement,
       // la dernière flèche arrive pile à la fin ; l'espace restant est réparti également.
       let gs0 = gap * 0.5;                        // symbole tout près des flèches
-      const unit = K.len + slot + 2 * gs0;
-      let count = Math.max(2, Math.round((L + slot + 2 * gs0) / unit));
+      let count = Math.max(1, Math.round((L + gs0) / (K.len + slot + 2 * gs0)));
       // les motifs s'étirent ou se resserrent un peu pour combler l'espace au lieu de laisser des trous
-      if (A_U && count > 1) {
+      if (A_U) {
         const n = count, base = K.len - A_U * u0;
-        const u2 = (L - n * base - (n - 1) * (slot + 1.2 * sc)) / (n * A_U + (n - 1) * 0.95);
+        const u2 = (L - n * base - n * slot - (2 * n - 1) * 0.6 * sc) / (n * A_U + (2 * n - 1) * 0.475);
         u = Math.max(0.8 * u0, Math.min(1.25 * u0, u2));
         K = MK(u); gs0 = 0.5 * gapOf(u);
       }
       let gs = 0;
-      while (count > 1) {
-        gs = (L - count * K.len - (count - 1) * slot) / (2 * (count - 1));
-        if (gs >= gs0 * 0.4) break;
+      while (true) {
+        gs = (L - count * (K.len + slot)) / (2 * count - 1);
+        if (gs >= gs0 * 0.4 || count === 1) break;
         count--;
       }
+      gs = Math.max(0, gs);
       const slots = [];
-      if (count <= 1) {                           // tracé très court : un motif puis le symbole
-        K.draw(0);
-        slots.push(Math.min(L - slot / 2, K.len + gs0 + slot / 2));
-      } else {
-        let st = 0;
-        for (let i = 0; i < count; i++) {
-          K.draw(st);
-          if (i < count - 1) slots.push(st + K.len + gs + slot / 2);
-          st += K.len + 2 * gs + slot;
-        }
+      let st = 0;
+      for (let i = 0; i < count; i++) {
+        slots.push(st + slot / 2);
+        st += slot + gs;
+        K.draw(Math.min(st, Math.max(0, L - K.len)));
+        st += K.len + gs;
       }
       return { s: S, f: F, w: sw, c: gait.color, slots };
     }
@@ -1761,7 +1756,7 @@
   // Copie autonome d'un dessin : styles écrits dans le SVG et flèches incluses,
   // pour qu'il s'affiche pareil à l'impression et dans le PDF.
   const PRINT_STYLES = {
-    arena: 'fill:#fbf9f5;stroke:#3a3631;stroke-width:1.4',
+    arena: 'fill:#fdf3df;stroke:#3a2e25;stroke-width:1.4',
     centerline: 'stroke:#8a8075;stroke-width:1.1;stroke-dasharray:1 5;stroke-linecap:round;opacity:.55',
     quarterline: 'stroke:#8a8075;stroke-width:1.1;stroke-dasharray:1 5;stroke-linecap:round;opacity:.55',
     tick: 'stroke:#3a3631;stroke-width:1.6',
