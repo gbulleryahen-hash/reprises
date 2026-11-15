@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111503';
+  const APP_V = '2026111504';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -871,7 +871,8 @@
       return { x: sg.a.x + (sg.b.x - sg.a.x) * t, y: sg.a.y + (sg.b.y - sg.a.y) * t,
         tx: (sg.b.x - sg.a.x) / sg.len, ty: (sg.b.y - sg.a.y) / sg.len };
     };
-    let u = 6.5 * gait.f * sc; const A = (4 + gait.w * 1.4) * sc, W = (2.2 + gait.w * 0.9) * sc;
+    // les flèches suivent aussi le curseur « largeur des traits » (lw)
+    let u = 6.5 * gait.f * sc; const A = (4 + gait.w * 1.4 * lw) * sc, W = (2.2 + gait.w * 0.9 * lw) * sc;
     let S = '', F = '';
     const dot = d => {   // un peu plus gros que la moitié du trait : à l'œil, il paraît de même largeur
       const p = at(d), r = sw * 0.62;
