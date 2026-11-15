@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111510';
+  const APP_V = '2026111511';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -374,16 +374,25 @@
     const mirror = n > 1 && Math.abs(a.x - w / 2) < 0.05 && Math.abs(b.x - w / 2) < 0.05;
     const dy = b.y - a.y, sg = Math.sign(dy) || 1, seg = Math.abs(dy) / (2 * n);
     const f = Math.min(ui.ccFlat, seg * 0.8) / 2;
-    const pts = [a];
+    // depuis la piste, chaque pointe est un tracé à part : les retours touchent exactement la piste
+    // (pas d'arrondi qui les décolle du bord) ; du milieu au milieu, un seul tracé continu
+    const out = [];
+    let pts = [a];
     for (let k = 0; k < n; k++) {
       const yc = a.y + dy * (2 * k + 1) / (2 * n);
       const x = mirror && k % 2 ? w - ax : ax;
       if (f > 0.05) pts.push(pt(r3(x), r3(yc - sg * f)), pt(r3(x), r3(yc + sg * f)));
       else pts.push(pt(r3(x), r3(yc)));
-      if (!mirror && k < n - 1) pts.push(pt(r3(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n)), r3(a.y + dy * (2 * k + 2) / (2 * n))));
+      if (!mirror && k < n - 1) {
+        const back = pt(r3(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n)), r3(a.y + dy * (2 * k + 2) / (2 * n)));
+        pts.push(back);
+        out.push({ t: 'line', g: ui.gait, m: ui.move, p: pts });
+        pts = [back];
+      }
     }
     pts.push(b);
-    return [{ t: 'line', g: ui.gait, m: ui.move, p: pts }];
+    out.push({ t: 'line', g: ui.gait, m: ui.move, p: pts });
+    return out;
   }
   const CC_N = [1, 2, 3, 4];
   const CC_FLAT = [0, 4, 6, 8];
