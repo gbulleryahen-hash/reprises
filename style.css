@@ -1,6 +1,6 @@
 /* Éditeur de reprises de dressage — Copyright (C) 2026 gbulleryahen-hash — licence GNU GPL v3 ou ultérieure (voir LICENSE) */
 :root {
-  --css-v: "2026111502";   /* même numéro que dans index.html et app.js */
+  --css-v: "2026111503";   /* même numéro que dans index.html et app.js */
   --bg: #f6f3ee;
   --panel: #ffffff;
   --ink: #2b2420;
@@ -449,7 +449,7 @@ body.tool-eraser .shape:hover { opacity: .35; }
 }
 .gpill svg { display: block; }
 .gpill.active { background: #f3ece1; border: 2px solid var(--ink); color: var(--c); }
-.gaitx { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
+.gaitx { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
 .topbar .current svg { flex: none; }
 .lmo { width: 11mm; height: 3.8mm; flex: none; }
 @media (max-width: 760px) { .toolbar { width: auto; } }
