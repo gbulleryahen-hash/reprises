@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111504';
+  const APP_V = '2026111505';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -53,7 +53,7 @@
     GAITS.push({ id: `${k.id}_${l.id}`, kind: k.id, lv: l.id, label: gaitName(k, l), color: l.color, w: l.w, f: l.f });
   }
   GAITS.push(
-    { id: 'paslibre', kind: 'paslibre', lv: 'all', label: 'Pas libre', color: '#6B7F8E', w: 1.8, f: 1.0 },
+    { id: 'paslibre', kind: 'paslibre', lv: 'all', label: 'Pas libre', color: '#6B7F8E', w: 1.6, f: 1.0 },
     { id: 'piaffer', kind: 'piaffer', lv: 'ras',  label: 'Piaffer', color: '#D32F2F', w: 2.9, f: 0.9 },
     { id: 'passage', kind: 'passage', lv: 'ras',  label: 'Passage', color: '#F2B01E', w: 2.6, f: 0.85 },
     { id: 'reculer', kind: 'reculer', lv: 'trav', label: 'Reculer', color: '#7B1FA2', w: 2.9, f: 1.0 },
@@ -879,15 +879,11 @@
       F += `M${r2(p.x - r)},${r2(p.y)}a${r2(r)},${r2(r)} 0 1 0 ${r2(2 * r)},0a${r2(r)},${r2(r)} 0 1 0 ${r2(-2 * r)},0Z`;
     };
     const dash = (d0, d1) => { const a = at(d0), b = at(d1); S += `M${r2(a.x)},${r2(a.y)}L${r2(b.x)},${r2(b.y)}`; };
-    // pas libre : double trait fin (deux lignes parallèles qui suivent le tracé)
-    const dline = (d0, d1) => {
-      const o = sw * 1.25, N = Math.max(2, Math.ceil((d1 - d0) / 3));
-      for (const k of [-1, 1]) {
-        for (let i = 0; i <= N; i++) {
-          const p = at(d0 + (d1 - d0) * i / N);
-          S += (i ? 'L' : 'M') + r2(p.x - p.ty * o * k) + ',' + r2(p.y + p.tx * o * k);
-        }
-      }
+    // pas libre : ronds vides (même rythme que le pas, mais « ouvert »)
+    const rr = sw * 1.35;
+    const ring = d => {
+      const p = at(d);
+      S += `M${r2(p.x - rr)},${r2(p.y)}a${r2(rr)},${r2(rr)} 0 1 0 ${r2(2 * rr)},0a${r2(rr)},${r2(rr)} 0 1 0 ${r2(-2 * rr)},0Z`;
     };
     const wave = (d0, d1, amp) => {
       const N = 24;
@@ -915,13 +911,16 @@
       trot:    { len: 4.8 * u + A, draw: s0 => { dash(s0, s0 + 1.6 * u); dash(s0 + 2.4 * u, s0 + 4 * u); arrow(s0 + 4.8 * u); } },
       galopD:  { len: 4.6 * u + 1.25 * A, draw: s0 => { dot(s0); dot(s0 + 1.05 * u); dash(s0 + 2.05 * u, s0 + 4.6 * u); arrow(s0 + 4.6 * u, 'R'); } },
       galopG:  { len: 4.6 * u + 1.25 * A, draw: s0 => { dot(s0); dot(s0 + 1.05 * u); dash(s0 + 2.05 * u, s0 + 4.6 * u); arrow(s0 + 4.6 * u, 'L'); } },
-      paslibre: { len: 4.4 * u + A, draw: s0 => { dline(s0, s0 + 3.7 * u); arrow(s0 + 4.4 * u); } },
+      paslibre: { len: 3 * Math.max(u, 3.2 * rr) + 2 * rr + 0.9 * u + A, draw: s0 => {
+        const su = Math.max(u, 3.2 * rr);   // ronds bien séparés
+        for (let i = 0; i < 4; i++) ring(s0 + rr + i * su);
+        arrow(s0 + 2 * rr + 3 * su + 0.9 * u); } },
       passage: { len: 4.6 * u + A, draw: s0 => { wave(s0, s0 + 3.8 * u, (1.8 + gait.w * 0.5) * sc); arrow(s0 + 4.6 * u); } },
       piaffer: { len: 2 * erx, draw: s0 => ellipse(s0 + erx) },
       reculer: { len: 2 * A + 2.4 * u, draw: s0 => { arrow(s0 + A, null, true); dash(s0 + A, s0 + A + 2.4 * u); arrow(s0 + A + 2.4 * u); } },
     })[gait.kind] || null;
     // coefficient de u dans la longueur du motif (len = a·u + b) : sert à étirer légèrement les motifs
-    const A_U = { pas: 3.9, paslibre: 4.4, trot: 4.8, galopD: 4.6, galopG: 4.6, passage: 4.6, reculer: 2.4 }[gait.kind] || 0;
+    const A_U = { pas: 3.9, paslibre: 3.9, trot: 4.8, galopD: 4.6, galopG: 4.6, passage: 4.6, reculer: 2.4 }[gait.kind] || 0;
     const u0 = u;
     let K = MK(u);
     if (!K) return { s: '', f: '', w: sw, c: gait.color };
