@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111511';
+  const APP_V = '2026111512';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -374,25 +374,19 @@
     const mirror = n > 1 && Math.abs(a.x - w / 2) < 0.05 && Math.abs(b.x - w / 2) < 0.05;
     const dy = b.y - a.y, sg = Math.sign(dy) || 1, seg = Math.abs(dy) / (2 * n);
     const f = Math.min(ui.ccFlat, seg * 0.8) / 2;
-    // depuis la piste, chaque pointe est un tracé à part : les retours touchent exactement la piste
-    // (pas d'arrondi qui les décolle du bord) ; du milieu au milieu, un seul tracé continu
-    const out = [];
-    let pts = [a];
+    // depuis la piste, les retours entre deux pointes sont des angles vifs posés sur la piste
+    // (pas d'arrondi qui les décolle du bord)
+    const pts = [a];
     for (let k = 0; k < n; k++) {
       const yc = a.y + dy * (2 * k + 1) / (2 * n);
       const x = mirror && k % 2 ? w - ax : ax;
       if (f > 0.05) pts.push(pt(r3(x), r3(yc - sg * f)), pt(r3(x), r3(yc + sg * f)));
       else pts.push(pt(r3(x), r3(yc)));
-      if (!mirror && k < n - 1) {
-        const back = pt(r3(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n)), r3(a.y + dy * (2 * k + 2) / (2 * n)));
-        pts.push(back);
-        out.push({ t: 'line', g: ui.gait, m: ui.move, p: pts });
-        pts = [back];
-      }
+      if (!mirror && k < n - 1)
+        pts.push({ x: r3(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n)), y: r3(a.y + dy * (2 * k + 2) / (2 * n)), sharp: 1 });
     }
     pts.push(b);
-    out.push({ t: 'line', g: ui.gait, m: ui.move, p: pts });
-    return out;
+    return [{ t: 'line', g: ui.gait, m: ui.move, p: pts }];
   }
   const CC_N = [1, 2, 3, 4];
   const CC_FLAT = [0, 4, 6, 8];
@@ -440,7 +434,7 @@
     return hs;
   }
   function moveShape(sh, dx, dy) {
-    const mv = q => q && pt(Math.round((q.x + dx) * 1000) / 1000, Math.round((q.y + dy) * 1000) / 1000);
+    const mv = q => q && { ...q, x: Math.round((q.x + dx) * 1000) / 1000, y: Math.round((q.y + dy) * 1000) / 1000 };
     if (sh.p) sh.p = sh.p.map(mv);
     if (sh.t === 'sym') { sh.x = Math.round((sh.x + dx) * 1000) / 1000; sh.y = Math.round((sh.y + dy) * 1000) / 1000; }
     for (const k of ['a', 'b', 'c']) if (sh[k] && typeof sh[k] === 'object') sh[k] = mv(sh[k]);
@@ -454,7 +448,7 @@
     for (const ref of refs) {
       const sh = shapes[ref.i];
       if (!sh) continue;
-      if (ref.key === 'p') sh.p[ref.k] = pt(q.x, q.y);
+      if (ref.key === 'p') sh.p[ref.k] = { ...sh.p[ref.k], x: q.x, y: q.y };   // garde « sharp »
       else if (ref.key === 'sym') { sh.x = q.x; sh.y = q.y; }
       else if (ref.key === 'circle') {
         const dx = q.x - from.x, dy = q.y - from.y;
@@ -502,6 +496,7 @@
       const A = pts[i - 1], B = pts[i], C = pts[i + 1];
       const lab = dist(A, B), lbc = dist(B, C);
       if (lab < 1e-6 || lbc < 1e-6) continue;
+      if (B.sharp) { out.push(B); continue; }   // angle vif voulu (ex. retour sur la piste d'un zigzag)
       const u1 = { x: (A.x - B.x) / lab, y: (A.y - B.y) / lab };
       const u2 = { x: (C.x - B.x) / lbc, y: (C.y - B.y) / lbc };
       const theta = Math.acos(Math.max(-1, Math.min(1, u1.x * u2.x + u1.y * u2.y)));
