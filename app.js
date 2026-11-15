@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111508';
+  const APP_V = '2026111509';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -72,13 +72,14 @@
     { id: 'arc',    label: '◠ Arc',        hint: 'Portion de cercle du diamètre choisi : cliquez au départ, puis tournez autour avec la souris (quart, demi, trois quarts… par pas de 45°) et cliquez pour valider. Partant du bout d’un tracé ou de la piste, l’arc continue dans son alignement. Maj : angle libre. Échap ou clic droit pour annuler.' },
     { id: 'serp',   label: '∿ Serpentine', hint: 'Choisissez le nombre de boucles et la largeur, cliquez près de A ou de C, puis placez la souris du côté de la première boucle et cliquez pour valider. Demi-cercles qui touchent la piste, reliés par des lignes droites. Échap pour annuler.' },
     { id: 'cc',     label: '⟩ Contre-changement', hint: 'Contre-changement de main : cliquez au départ (ex. F), puis à l’arrivée (ex. M), puis déplacez la souris jusqu’à la ligne voulue (milieu, quart, autre piste) et cliquez. Choisissez la longueur du passage droit au milieu. Échap pour annuler.' },
-    { id: 'edit',   label: '✥ Modifier',   hint: 'Faites glisser une poignée pour déplacer un point, une extrémité ou un symbole (elle s’accroche aux lettres). Une jonction déplace les deux tracés ensemble ; un arc garde sa forme et son diamètre s’ajuste. Échap pendant le glissement pour annuler.' },
+    { id: 'move',   label: '✥ Déplacer',   hint: 'Faites glisser un tracé ou un symbole pour le déplacer en entier (son extrémité la plus proche s’accroche aux lettres). Maj + glisser : déplace toute la figure. Échap pendant le glissement pour annuler.' },
+    { id: 'edit',   label: '⌖ Modifier',   hint: 'Faites glisser une poignée pour déplacer un point, une extrémité ou un symbole (elle s’accroche aux lettres). Une jonction déplace les deux tracés ensemble ; un arc garde sa forme et son diamètre s’ajuste. Échap pendant le glissement pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
   const TOOL_ICONS = {
     free: 'M4 17c3-8 6 4 9-3s5-6 7-4', line: 'M5 19L19 5', circle: 'M12 5a7 7 0 1 0 0.01 0',
-    arc: 'M5 17a7 7 0 0 1 14 0', serp: 'M5 4h7a4 4 0 0 1 0 8H12a4 4 0 0 0 0 8h7', cc: 'M7 3l9 7v4l-9 7', edit: 'M6 4l5 15 2.2-6.3L19.5 10.5zM14 14l5 5', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
+    arc: 'M5 17a7 7 0 0 1 14 0', serp: 'M5 4h7a4 4 0 0 1 0 8H12a4 4 0 0 0 0 8h7', cc: 'M7 3l9 7v4l-9 7', edit: 'M6 4l5 15 2.2-6.3L19.5 10.5zM14 14l5 5', move: 'M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3', eraser: 'M4 15l8-8 6 6-6 6H8zM10 19h10',
   };
   const toolName = t => t.label.replace(/^\S+\s/, '');
 
@@ -416,6 +417,17 @@
       else if (sh.t === 'sym') add({ x: sh.x, y: sh.y }, { i, key: 'sym' });
     });
     return hs;
+  }
+  function moveShape(sh, dx, dy) {
+    const mv = q => q && pt(Math.round((q.x + dx) * 1000) / 1000, Math.round((q.y + dy) * 1000) / 1000);
+    if (sh.p) sh.p = sh.p.map(mv);
+    if (sh.t === 'sym') { sh.x = Math.round((sh.x + dx) * 1000) / 1000; sh.y = Math.round((sh.y + dy) * 1000) / 1000; }
+    for (const k of ['a', 'b', 'c']) if (sh[k] && typeof sh[k] === 'object') sh[k] = mv(sh[k]);
+  }
+  function shapeAnchors(sh) {
+    if (sh.t === 'sym') return [{ x: sh.x, y: sh.y }];
+    if (sh.p && sh.p.length) return [sh.p[0], sh.p[sh.p.length - 1]];
+    return [sh.a, sh.b].filter(Boolean);
   }
   function applyEdit(shapes, refs, q, from) {
     for (const ref of refs) {
@@ -1364,7 +1376,7 @@
   function cancelDrag() {
     if (drag) {
       const c = state.cases.find(x => x.id === drag.caseId);
-      if (drag.tool === 'edit' && c && drag.moved) { c.shapes = JSON.parse(drag.before); drag = null; renderShapes(c); }
+      if ((drag.tool === 'edit' || drag.tool === 'move') && c && drag.moved) { c.shapes = JSON.parse(drag.before); drag = null; renderShapes(c); }
       drag = null;
       if (c) drawPreview(c);
     }
@@ -1417,6 +1429,22 @@
         drag = { caseId: c.id, tool: 'edit', h: pt(best.x, best.y), cur: pt(best.x, best.y), refs: best.refs,
                  before: JSON.stringify(c.shapes), moved: false };
         drawPreview(c);
+      }
+      e.preventDefault();
+      return;
+    }
+    if (tool === 'move') {
+      const t = e.target.closest('.shape');
+      const all = e.shiftKey;
+      if (t || all) {
+        const idx = all ? c.shapes.map((_, i) => i) : [+t.dataset.i];
+        // point d'accroche : l'extrémité (ou le symbole) la plus proche de l'endroit saisi
+        let anchor = null, bd = Infinity;
+        for (const i of idx) for (const q of shapeAnchors(c.shapes[i])) { const d = dist(q, raw); if (d < bd) { bd = d; anchor = q; } }
+        if (anchor) {
+          r.svg.setPointerCapture(e.pointerId);
+          drag = { caseId: c.id, tool: 'move', idx, anchor: pt(anchor.x, anchor.y), raw0: raw, before: JSON.stringify(c.shapes), moved: false };
+        }
       }
       e.preventDefault();
       return;
@@ -1511,30 +1539,33 @@
 
   // Arc : la souris tourne autour du centre ; l'angle balayé est cumulé (on peut dépasser 180°)
   function arcFollow(d, m, c, free) {
-    const a = d.a, r = d.r;
-    const vx = m.x - a.x, vy = m.y - a.y, dm = Math.hypot(vx, vy);
-    if (d.ctr && dm < r * 0.3 && Math.abs(d.acc) < 0.6) { d.ctr = null; d.sw = 0; d.b = a; }   // retour au départ : on peut changer de côté
-    if (!d.ctr) {
-      if (dm < Math.max(0.8, r * 0.35)) return;
-      let n;
-      if (d.t0) {                                  // centre sur la perpendiculaire à la direction de départ, du côté de la souris
-        n = { x: -d.t0.y, y: d.t0.x };
-        if (!d.t0.signed) {                        // départ sur la piste : le centre est toujours dans la carrière
-          const w = arenaW(c.size), mid = pt(w / 2, c.size / 2);
-          if ((mid.x - a.x) * n.x + (mid.y - a.y) * n.y < 0) n = { x: -n.x, y: -n.y };
-        } else if (vx * n.x + vy * n.y < 0) n = { x: -n.x, y: -n.y };
-      } else {                                     // sinon : vers la souris, aimanté sur les axes
-        let ang = Math.atan2(vy, vx);
-        const q = Math.round(ang / (Math.PI / 2)) * (Math.PI / 2);
-        if (Math.abs(ang - q) < Math.PI / 9) ang = q;
-        n = { x: Math.cos(ang), y: Math.sin(ang) };
+    const a = d.a, r = d.r, T = d.t0;
+    const dm = dist(m, a);
+    if (d.ctr && dm < 0.4) { d.ctr = null; d.sw = 0; d.b = a; }   // retour au point de départ : on recommence
+    // Tant que l'arc est court, on choisit parmi les cercles possibles celui que la souris suit le mieux :
+    //  - au bout d'un tracé : à gauche ou à droite de la direction de marche ;
+    //  - sur la piste : le cercle intérieur ;
+    //  - en plein milieu : les 4 cercles dont la tangente au départ suit un axe de la carrière.
+    if (!d.ctr || Math.abs(d.acc) < 0.6) {
+      if (dm < Math.min(1.5, r * 0.5)) return;
+      let normals;
+      if (T && T.signed) normals = [{ x: -T.y, y: T.x }, { x: T.y, y: -T.x }];
+      else if (T) {
+        let n = { x: -T.y, y: T.x };
+        const w = arenaW(c.size), mid = pt(w / 2, c.size / 2);
+        if ((mid.x - a.x) * n.x + (mid.y - a.y) * n.y < 0) n = { x: -n.x, y: -n.y };
+        normals = [n];
+      } else normals = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+      let best = null, be = Infinity;
+      for (const n of normals) {
+        const ctr = pt(a.x + n.x * r, a.y + n.y * r), err = Math.abs(dist(m, ctr) - r);
+        if (err < be) { be = err; best = ctr; }
       }
-      d.ctr = pt(a.x + n.x * r, a.y + n.y * r);
-      d.ta = Math.atan2(a.y - d.ctr.y, a.x - d.ctr.x);
-      d.prev = Math.atan2(m.y - d.ctr.y, m.x - d.ctr.x);
+      d.ctr = best;
+      d.ta = Math.atan2(a.y - best.y, a.x - best.x);
+      d.prev = Math.atan2(m.y - best.y, m.x - best.x);
       d.acc = wrapAng(d.prev - d.ta);
-      // sens imposé quand on prolonge un tracé : celui de la marche
-      d.sgn = d.t0 && d.t0.signed ? Math.sign((a.x - d.ctr.x) * d.t0.y - (a.y - d.ctr.y) * d.t0.x) : 0;
+      d.sgn = T && T.signed ? Math.sign((a.x - best.x) * T.y - (a.y - best.y) * T.x) : 0;
     } else {
       const cur = Math.atan2(m.y - d.ctr.y, m.x - d.ctr.x);
       d.acc += wrapAng(cur - d.prev);
@@ -1576,6 +1607,20 @@
     showSnap(c, raw);
     if (!drag || drag.caseId !== c.id) return;
     if (drag.phase === 'sweep') { arcFollow(drag, raw, c, e.shiftKey); drawPreview(c); return; }
+    if (drag.tool === 'move') {
+      const base = JSON.parse(drag.before);
+      const tgt = pt(drag.anchor.x + raw.x - drag.raw0.x, drag.anchor.y + raw.y - drag.raw0.y);
+      // accroche : on ignore les extrémités des tracés déplacés
+      const others = { ...c, shapes: base.filter((_, i) => !drag.idx.includes(i)) };
+      const q = snap(tgt, others);
+      const dx = q.x - drag.anchor.x, dy = q.y - drag.anchor.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 0.05) return;
+      drag.moved = true;
+      drag.idx.forEach(i => moveShape(base[i], dx, dy));
+      c.shapes = base;
+      renderShapes(c);
+      return;
+    }
     if (drag.tool === 'edit') {
       const q = snap(raw, c, drag.h), np = pt(q.x, q.y);
       if (!drag.moved && dist(np, drag.h) < 0.05) return;
@@ -1603,7 +1648,7 @@
   }
 
   function onUp(e, c) {
-    if (drag && drag.caseId === c.id && drag.tool === 'edit') {
+    if (drag && drag.caseId === c.id && (drag.tool === 'edit' || drag.tool === 'move')) {
       const d = drag;
       drag = null;
       if (d.moved) {                              // une seule étape d'annulation pour tout le glissement
@@ -1921,6 +1966,7 @@
     document.querySelectorAll('[data-ccflat]').forEach(b => b.classList.toggle('active', +b.dataset.ccflat === ui.ccFlat));
     $('#cc-group').style.display = ui.tool === 'cc' ? '' : 'none';
     document.body.classList.toggle('tool-edit', ui.tool === 'edit');
+    document.body.classList.toggle('tool-move', ui.tool === 'move');
     document.body.classList.toggle('tool-eraser', ui.tool === 'eraser');
     const t = TOOLS.find(x => x.id === ui.tool);
     $('#hint').textContent = gaitOf(ui.gait).kind === 'piaffer' && t && t.id !== 'eraser'
