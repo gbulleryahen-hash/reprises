@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111509';
+  const APP_V = '2026111510';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -71,7 +71,7 @@
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
     { id: 'arc',    label: '◠ Arc',        hint: 'Portion de cercle du diamètre choisi : cliquez au départ, puis tournez autour avec la souris (quart, demi, trois quarts… par pas de 45°) et cliquez pour valider. Partant du bout d’un tracé ou de la piste, l’arc continue dans son alignement. Maj : angle libre. Échap ou clic droit pour annuler.' },
     { id: 'serp',   label: '∿ Serpentine', hint: 'Choisissez le nombre de boucles et la largeur, cliquez près de A ou de C, puis placez la souris du côté de la première boucle et cliquez pour valider. Demi-cercles qui touchent la piste, reliés par des lignes droites. Échap pour annuler.' },
-    { id: 'cc',     label: '⟩ Contre-changement', hint: 'Contre-changement de main : cliquez au départ (ex. F), puis à l’arrivée (ex. M), puis déplacez la souris jusqu’à la ligne voulue (milieu, quart, autre piste) et cliquez. Choisissez la longueur du passage droit au milieu. Échap pour annuler.' },
+    { id: 'cc',     label: '⟩ Contre-changement', hint: 'Contre-changement de main / zigzag : choisissez le nombre de pointes, cliquez au départ (ex. F, ou D sur la ligne du milieu), puis à l’arrivée (ex. M, ou G), puis déplacez la souris jusqu’à la ligne voulue et cliquez. Du milieu au milieu, les pointes alternent de chaque côté. Échap pour annuler.' },
     { id: 'move',   label: '✥ Déplacer',   hint: 'Faites glisser un tracé ou un symbole pour le déplacer en entier (son extrémité la plus proche s’accroche aux lettres). Maj + glisser : déplace toute la figure. Échap pendant le glissement pour annuler.' },
     { id: 'edit',   label: '⌖ Modifier',   hint: 'Faites glisser une poignée pour déplacer un point, une extrémité ou un symbole (elle s’accroche aux lettres). Une jonction déplace les deux tracés ensemble ; un arc garde sa forme et son diamètre s’ajuste. Échap pendant le glissement pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
@@ -364,16 +364,28 @@
   // ---------------------------------------------------------------- Contre-changement de main
   // départ et arrivée (en général sur la même piste), pointe jusqu'à la ligne choisie,
   // avec un court passage droit au milieu (redresser avant de changer de pli)
+  // n pointes = zigzag. Partant de la piste : on revient toucher la ligne de départ entre deux pointes.
+  // Partant de la ligne du milieu (départ et arrivée sur le milieu) : les pointes alternent de part et d'autre.
   function ccShapes(c, a, b, m) {
-    const w = arenaW(c.size), r3 = v => Math.round(v * 1000) / 1000;
-    const midY = (a.y + b.y) / 2, dy = Math.sign(b.y - a.y) || 1;
+    const w = arenaW(c.size), r3 = v => Math.round(v * 1000) / 1000, n = ui.ccN;
     let ax = m.x;
     for (const qx of [0, w / 4, w / 2, w * 3 / 4, w]) if (Math.abs(m.x - qx) < 1.5) ax = qx;
     ax = Math.max(0, Math.min(w, ax));
-    const f = Math.min(ui.ccFlat, Math.abs(b.y - a.y) * 0.5) / 2;
-    const pts = f > 0.05 ? [a, pt(r3(ax), r3(midY - dy * f)), pt(r3(ax), r3(midY + dy * f)), b] : [a, pt(r3(ax), r3(midY)), b];
+    const mirror = n > 1 && Math.abs(a.x - w / 2) < 0.05 && Math.abs(b.x - w / 2) < 0.05;
+    const dy = b.y - a.y, sg = Math.sign(dy) || 1, seg = Math.abs(dy) / (2 * n);
+    const f = Math.min(ui.ccFlat, seg * 0.8) / 2;
+    const pts = [a];
+    for (let k = 0; k < n; k++) {
+      const yc = a.y + dy * (2 * k + 1) / (2 * n);
+      const x = mirror && k % 2 ? w - ax : ax;
+      if (f > 0.05) pts.push(pt(r3(x), r3(yc - sg * f)), pt(r3(x), r3(yc + sg * f)));
+      else pts.push(pt(r3(x), r3(yc)));
+      if (!mirror && k < n - 1) pts.push(pt(r3(a.x + (b.x - a.x) * (2 * k + 2) / (2 * n)), r3(a.y + dy * (2 * k + 2) / (2 * n))));
+    }
+    pts.push(b);
     return [{ t: 'line', g: ui.gait, m: ui.move, p: pts }];
   }
+  const CC_N = [1, 2, 3, 4];
   const CC_FLAT = [0, 4, 6, 8];
 
   // ---------------------------------------------------------------- Modifier (poignées)
@@ -813,7 +825,7 @@
   // Réglages de la barre d'outils : ils restent enclenchés (et sont mémorisés)
   const UI_KEY = 'reprises.outils';
   const LOOPS = [2, 3, 4, 5, 6];
-  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true, loops: 3, serpW: 1, ccFlat: 4 };
+  const ui = { tool: 'line', gait: 'trot_trav', move: 'droit', diam: 10, snap: true, loops: 3, serpW: 1, ccFlat: 4, ccN: 1 };
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
     // l'outil n'est pas repris d'une visite à l'autre : on démarre toujours sur « Ligne »
@@ -824,6 +836,7 @@
     if (LOOPS.includes(saved.loops)) ui.loops = saved.loops;
     if ([1, 0.75, 0.5].includes(saved.serpW)) ui.serpW = saved.serpW;
     if ([0, 4, 6, 8].includes(saved.ccFlat)) ui.ccFlat = saved.ccFlat;
+    if ([1, 2, 3, 4].includes(saved.ccN)) ui.ccN = saved.ccN;
   } catch { /* rien */ }
   const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* rien */ } };
   const history = new Map();   // id de case -> piles d'états précédents
@@ -1895,7 +1908,9 @@
     $('#serpw').innerHTML = SERP_W.map(([f, t]) => `<button data-serpw="${f}" title="${t}">${f === 1 ? 'Piste à piste' : f === 0.75 ? '¾' : '½'}</button>`).join('');
     $('#serpw').insertAdjacentHTML('beforebegin', '<span class="sublabel">Largeur</span>');
     $('#ccflat').innerHTML = CC_FLAT.map(v => `<button data-ccflat="${v}">${v ? v + ' m' : 'aucun'}</button>`).join('');
-    $('#ccflat').insertAdjacentHTML('beforebegin', '<span class="sublabel">Passage droit au milieu</span>');
+    $('#ccflat').insertAdjacentHTML('beforebegin', '<span class="sublabel">Passage droit à chaque pointe</span>');
+    $('#ccn').innerHTML = CC_N.map(v => `<button data-ccn="${v}" title="${v} pointe${v > 1 ? 's' : ''}">${v}</button>`).join('');
+    $('#ccn').insertAdjacentHTML('beforebegin', '<span class="sublabel">Nombre de pointes (zigzag)</span>');
 
     $('.toolbar').addEventListener('click', e => {
       const b = e.target.closest('button');
@@ -1911,6 +1926,7 @@
       if (b.dataset.loops) ui.loops = +b.dataset.loops;
       if (b.dataset.serpw) ui.serpW = +b.dataset.serpw;
       if (b.dataset.ccflat) ui.ccFlat = +b.dataset.ccflat;
+      if (b.dataset.ccn) ui.ccN = +b.dataset.ccn;
       saveUi();
       refreshToolbar();
       state.cases.forEach(drawPreview);            // poignées de « Modifier », aperçu de la serpentine
@@ -1963,6 +1979,7 @@
     $('#serp-group').style.display = ui.tool === 'serp' ? '' : 'none';
     document.querySelectorAll('[data-loops]').forEach(b => b.classList.toggle('active', +b.dataset.loops === ui.loops));
     document.querySelectorAll('[data-serpw]').forEach(b => b.classList.toggle('active', +b.dataset.serpw === ui.serpW));
+    document.querySelectorAll('[data-ccn]').forEach(b => b.classList.toggle('active', +b.dataset.ccn === ui.ccN));
     document.querySelectorAll('[data-ccflat]').forEach(b => b.classList.toggle('active', +b.dataset.ccflat === ui.ccFlat));
     $('#cc-group').style.display = ui.tool === 'cc' ? '' : 'none';
     document.body.classList.toggle('tool-edit', ui.tool === 'edit');
