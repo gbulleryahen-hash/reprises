@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111241';
+  const APP_V = '2026111501';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -68,7 +68,7 @@
     { id: 'free',   label: '✎ Main levée', hint: 'Dessinez librement : le tracé est lissé et ses extrémités s’accrochent aux lettres.' },
     { id: 'line',   label: '╱ Ligne',      hint: 'Cliquez point après point (lettres, coins…). Double-clic ou Entrée pour terminer, Échap ou clic droit pour annuler. Les angles sont arrondis en arcs de 6 m.' },
     { id: 'circle', label: '◯ Cercle',     hint: '1) Cliquez sur la lettre où le cercle touche la piste et glissez vers l’intérieur, relâchez. 2) Cliquez du côté où le cheval part (ex. depuis E : vers C ou vers A) : les flèches suivent la souris. Échap pour annuler.' },
-    { id: 'arc',    label: '◠ Arc',        hint: 'Demi-cercle du diamètre choisi : cliquez au départ et glissez dans la direction voulue (l’arrivée se place toute seule), relâchez, puis cliquez du côté de l’arc. Maintenez Maj pour un arc libre jusqu’à une lettre. Échap ou clic droit pour annuler.' },
+    { id: 'arc',    label: '◠ Arc',        hint: 'Portion de cercle du diamètre choisi : cliquez au départ, puis tournez autour avec la souris (quart, demi, trois quarts… par pas de 45°) et cliquez pour valider. Partant du bout d’un tracé ou de la piste, l’arc continue dans son alignement. Maj : angle libre. Échap ou clic droit pour annuler.' },
     { id: 'eraser', label: '⌫ Gomme',      hint: 'Cliquez sur un tracé ou un symbole pour le supprimer.' },
   ];
 
@@ -289,6 +289,47 @@
     const s = (p.x - m.x) * -dy + (p.y - m.y) * dx;
     return s >= 0 ? 1 : -1;
   }
+
+  // Arc défini par son centre et son angle balayé (sw, en radians, signé) : peut dépasser le demi-cercle
+  function sweepPoints(c, r, a, sw) {
+    const ta = Math.atan2(a.y - c.y, a.x - c.x);
+    const N = Math.max(8, Math.ceil(Math.abs(sw) / (Math.PI / 32)));
+    return Array.from({ length: N + 1 }, (_, i) => {
+      const t = ta + sw * i / N;
+      return { x: c.x + r * Math.cos(t), y: c.y + r * Math.sin(t) };
+    });
+  }
+  function arcPoly(sh) {
+    return typeof sh.sw === 'number' && sh.c ? sweepPoints(sh.c, sh.r, sh.a, sh.sw) : arcPoints(sh.a, sh.b, sh.r, sh.side);
+  }
+  // Tracé en mètres (sans arrondis d'écran) : sert à connaître la direction au bout d'un tracé
+  function meterPoly(sh) {
+    if (sh.t === 'line') return filletPoints(sh.p, CORNER_R);
+    if (sh.t === 'free') return sh.p;
+    if (sh.t === 'arc') return arcPoly(sh);
+    if (sh.t === 'circle' && sh.dir) return circlePoints(sh);
+    return null;
+  }
+  // Direction de départ d'un arc posé en p : celle du tracé qui finit en p (avec son sens de marche),
+  // sinon celle de la piste si p est sur un bord (sans sens imposé), sinon aucune.
+  function startTangent(p, c) {
+    for (let i = c.shapes.length - 1; i >= 0; i--) {
+      const poly = meterPoly(c.shapes[i]);
+      if (!poly || poly.length < 2) continue;
+      const e = poly[poly.length - 1];
+      if (dist(e, p) > 0.15) continue;
+      let k = poly.length - 2;
+      while (k > 0 && dist(poly[k], e) < 0.05) k--;
+      const d = dist(poly[k], e);
+      if (d < 1e-6) continue;
+      return { x: (e.x - poly[k].x) / d, y: (e.y - poly[k].y) / d, signed: true };
+    }
+    const w = arenaW(c.size), onX = p.x < 0.05 || p.x > w - 0.05, onY = p.y < 0.05 || p.y > c.size - 0.05;
+    if (onX && !onY) return { x: 0, y: 1, signed: false };
+    if (onY && !onX) return { x: 1, y: 0, signed: false };
+    return null;
+  }
+  const wrapAng = t => Math.atan2(Math.sin(t), Math.cos(t));
 
   function arcPoints(a, b, r, side) {
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
@@ -734,7 +775,7 @@
   function screenPolyline(sh, g) {
     switch (sh.t) {
       case 'line': return filletPoints(sh.p, CORNER_R).map(g.to);
-      case 'arc': return arcPoints(sh.a, sh.b, sh.r, sh.side).map(g.to);
+      case 'arc': return arcPoly(sh).map(g.to);
       case 'circle': {
         if (sh.dir) return circlePoints(sh).map(g.to);
         const q = g.to(sh.c), R = sh.r * S;
@@ -1138,9 +1179,18 @@
       s = `<circle cx="${q.x}" cy="${q.y}" r="${ui.diam / 2 * S}" ${st} stroke-dasharray="6 5"/>` +
           `<circle cx="${q.x}" cy="${q.y}" r="2.5" fill="${col}"/>`;
     } else if (drag.tool === 'arc') {
-      const side = drag.phase === 'side' ? arcSide(drag.a, drag.b, drag.cursor) : 1;
-      if (dist(drag.a, drag.b) > 0.3) {
-        s = `<path d="${polyPath(arcPoints(drag.a, drag.b, ui.diam / 2, side).map(g.to))}" ${st} stroke-dasharray="6 5"/>`;
+      const a = g.to(drag.a);
+      s = `<circle cx="${a.x}" cy="${a.y}" r="3.5" fill="${col}"/>`;
+      if (drag.ctr) {
+        const q = g.to(drag.ctr), R = drag.r * S;
+        s += `<circle cx="${q.x}" cy="${q.y}" r="${R}" fill="none" stroke="${col}" stroke-width="1" stroke-dasharray="2 4" opacity=".45"/>` +
+             `<circle cx="${q.x}" cy="${q.y}" r="2.2" fill="${col}" opacity=".6"/>`;
+        if (Math.abs(drag.sw) > 1e-3) {
+          const sh = { t: 'arc', g: ui.gait, m: ui.move, a: drag.a, b: drag.b, r: drag.r, c: drag.ctr, sw: drag.sw };
+          const e = g.to(drag.b), deg = Math.round(Math.abs(drag.sw) * 180 / Math.PI);
+          s += `<g opacity=".8">${shapeSvg(sh, g, -1)}</g>` +
+               `<text x="${e.x + 8}" y="${e.y - 8}" font-size="13" font-weight="700" fill="${col}" stroke="#fff" stroke-width="3" paint-order="stroke">${deg}°</text>`;
+        }
       }
     }
     r.preview.innerHTML = s;
@@ -1252,11 +1302,16 @@
       e.preventDefault();
       return;
     }
-    if (tool === 'arc' && drag && drag.phase === 'side') {
-      const sh = { t: 'arc', g: ui.gait, m: ui.move, a: drag.a, b: drag.b, r: ui.diam / 2, side: arcSide(drag.a, drag.b, raw) };
-      drag = null;
-      drawPreview(c);
-      mutate(c, () => c.shapes.push(sh));
+    if (tool === 'arc') {
+      if (!drag) {                       // 1er clic : point de départ
+        const a = pt(p.x, p.y);
+        drag = { caseId: c.id, tool, phase: 'sweep', a, b: a, r: ui.diam / 2, t0: startTangent(a, c), ctr: null, sw: 0, pressed: true };
+        r.svg.setPointerCapture(e.pointerId);   // on peut aussi glisser sans relâcher (écran tactile)
+        drawPreview(c);
+      } else if (drag.phase === 'sweep' && Math.abs(drag.sw) > 1e-3) {   // 2e clic : on valide
+        commitArc(c);
+      }
+      e.preventDefault();
       return;
     }
     r.svg.setPointerCapture(e.pointerId);
@@ -1267,30 +1322,95 @@
     e.preventDefault();
   }
 
+  // Arc : la souris tourne autour du centre ; l'angle balayé est cumulé (on peut dépasser 180°)
+  function arcFollow(d, m, c, free) {
+    const a = d.a, r = d.r;
+    const vx = m.x - a.x, vy = m.y - a.y, dm = Math.hypot(vx, vy);
+    if (d.ctr && dm < r * 0.3 && Math.abs(d.acc) < 0.6) { d.ctr = null; d.sw = 0; d.b = a; }   // retour au départ : on peut changer de côté
+    if (!d.ctr) {
+      if (dm < Math.max(0.8, r * 0.35)) return;
+      let n;
+      if (d.t0) {                                  // centre sur la perpendiculaire à la direction de départ, du côté de la souris
+        n = { x: -d.t0.y, y: d.t0.x };
+        if (!d.t0.signed) {                        // départ sur la piste : le centre est toujours dans la carrière
+          const w = arenaW(c.size), mid = pt(w / 2, c.size / 2);
+          if ((mid.x - a.x) * n.x + (mid.y - a.y) * n.y < 0) n = { x: -n.x, y: -n.y };
+        } else if (vx * n.x + vy * n.y < 0) n = { x: -n.x, y: -n.y };
+      } else {                                     // sinon : vers la souris, aimanté sur les axes
+        let ang = Math.atan2(vy, vx);
+        const q = Math.round(ang / (Math.PI / 2)) * (Math.PI / 2);
+        if (Math.abs(ang - q) < Math.PI / 9) ang = q;
+        n = { x: Math.cos(ang), y: Math.sin(ang) };
+      }
+      d.ctr = pt(a.x + n.x * r, a.y + n.y * r);
+      d.ta = Math.atan2(a.y - d.ctr.y, a.x - d.ctr.x);
+      d.prev = Math.atan2(m.y - d.ctr.y, m.x - d.ctr.x);
+      d.acc = wrapAng(d.prev - d.ta);
+      // sens imposé quand on prolonge un tracé : celui de la marche
+      d.sgn = d.t0 && d.t0.signed ? Math.sign((a.x - d.ctr.x) * d.t0.y - (a.y - d.ctr.y) * d.t0.x) : 0;
+    } else {
+      const cur = Math.atan2(m.y - d.ctr.y, m.x - d.ctr.x);
+      d.acc += wrapAng(cur - d.prev);
+      d.prev = cur;
+    }
+    const TAU = 2 * Math.PI;
+    d.acc = Math.max(-TAU, Math.min(TAU, d.acc));
+    let sw = d.sgn ? (d.sgn > 0 ? Math.max(0, d.acc) : Math.min(0, d.acc)) : d.acc;
+    const sg = d.sgn || Math.sign(d.acc) || 1;
+    // accroche sur une lettre / un bout de tracé situé sur le cercle
+    let hit = null;
+    if (!free && ui.snap) {
+      let bd = SNAP_R;
+      for (const q of shapeEnds(c).concat(snapPoints(c.size))) {
+        if (Math.abs(dist(q, d.ctr) - r) > 0.3 || dist(q, a) < 0.3) continue;
+        const dd = dist(q, m);
+        if (dd < bd) { bd = dd; hit = q; }
+      }
+    }
+    if (hit) {
+      let t = wrapAng(Math.atan2(hit.y - d.ctr.y, hit.x - d.ctr.x) - d.ta);
+      if (sg > 0 && t < 0) t += TAU;
+      if (sg < 0 && t > 0) t -= TAU;
+      sw = t;
+    } else if (!free) {
+      const step = Math.PI / 4;                   // quart, demi, trois quarts… par pas de 45°
+      sw = Math.round(sw / step) * step;
+      if (sw === 0 && Math.abs(d.acc) > step / 4) sw = sg * step;
+    }
+    d.sw = sw;
+    const te = d.ta + sw;
+    d.b = pt(d.ctr.x + r * Math.cos(te), d.ctr.y + r * Math.sin(te));
+  }
+
   function onMove(e, c) {
     const r = refs.get(c.id);
     const g = geom(c.size, c.orient);
     const raw = g.from(svgPoint(r.svg, e));
     showSnap(c, raw);
     if (!drag || drag.caseId !== c.id) return;
+    if (drag.phase === 'sweep') { arcFollow(drag, raw, c, e.shiftKey); drawPreview(c); return; }
     if (drag.phase) { drag.cursor = raw; drawPreview(c); return; }
     if (drag.tool === 'free') drag.pts.push(raw);
     else if (drag.tool === 'line') { const p = snap(raw, c); drag.cursor = pt(p.x, p.y); }
-    else if (drag.tool === 'arc' && !e.shiftKey) {
-      // demi-cercle : l'arrivée est à exactement un diamètre du départ, dans la direction de la souris
-      // (aimantée sur les axes de la carrière à ±20°)
-      let ang = Math.atan2(raw.y - drag.a.y, raw.x - drag.a.x);
-      const q = Math.round(ang / (Math.PI / 2)) * (Math.PI / 2);
-      if (Math.abs(ang - q) < Math.PI / 9) ang = q;
-      const dm = ui.diam;
-      drag.b = pt(drag.a.x + Math.cos(ang) * dm, drag.a.y + Math.sin(ang) * dm);
-      drag.raw = raw;
-    }
     else { const p = snap(raw, c); drag.b = pt(p.x, p.y); drag.raw = raw; }
     drawPreview(c);
   }
 
+  function commitArc(c) {
+    const d = drag, r3 = v => Math.round(v * 1000) / 1000;
+    const sh = { t: 'arc', g: ui.gait, m: ui.move, a: d.a, b: pt(r3(d.b.x), r3(d.b.y)), r: d.r,
+                 c: pt(r3(d.ctr.x), r3(d.ctr.y)), sw: r3(d.sw) };
+    drag = null;
+    drawPreview(c);
+    mutate(c, () => c.shapes.push(sh));
+  }
+
   function onUp(e, c) {
+    if (drag && drag.caseId === c.id && drag.phase === 'sweep' && drag.pressed) {
+      drag.pressed = false;
+      if (Math.abs(drag.sw) > 1e-3) commitArc(c);   // glisser-relâcher : l'arc est posé
+      return;
+    }
     if (drag && drag.caseId === c.id && drag.phase === 'dir' && drag.pressed) {
       const raw = geom(c.size, c.orient).from(svgPoint(refs.get(c.id).svg, e));
       const sh = { t: 'circle', g: ui.gait, m: ui.move, c: drag.ctr, r: drag.r, a: drag.a, dir: circleDir(drag.a, drag.ctr, raw) };
@@ -1317,14 +1437,6 @@
       d.cursor = geom(c.size, c.orient).from(svgPoint(refs.get(c.id).svg, e));
       drawPreview(c);
       return;
-    } else if (d.tool === 'arc') {
-      if (dist(d.a, d.b) > 0.3) {
-        // 2e temps : choisir le côté de l'arc puis cliquer
-        d.phase = 'side';
-        d.cursor = refs.get(c.id) ? geom(c.size, c.orient).from(svgPoint(refs.get(c.id).svg, e)) : d.b;
-        drawPreview(c);
-        return;
-      }
     }
     drag = null;
     drawPreview(c);
