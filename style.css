@@ -1,6 +1,6 @@
 /* Éditeur de reprises de dressage — Copyright (C) 2026 gbulleryahen-hash — licence GNU GPL v3 ou ultérieure (voir LICENSE) */
 :root {
-  --css-v: "2026111513";   /* même numéro que dans index.html et app.js */
+  --css-v: "2026112201";   /* même numéro que dans index.html et app.js */
   --bg: #f6f3ee;
   --panel: #ffffff;
   --ink: #2b2420;
@@ -252,23 +252,23 @@ body.tool-eraser .shape:hover { opacity: .35; }
 }
 .pcoef.hi { color: #fff; background: var(--accent); padding: 0.5mm 1.4mm; border-radius: 1mm; }
 .pbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1mm; }
-.psvg { flex: 0 1 var(--dh, 36mm); min-width: 0; min-height: 22mm; }
+.psvg { flex: 0 1 calc(var(--dh, 36mm) * var(--ak, 1)); min-width: 0; min-height: 22mm; }
 .psvg svg { width: 100%; height: 100%; display: block; }
 .ptext { flex: 1 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 1mm; }
 .ptext > .pnote { margin-top: auto; }
 /* Paysage : carrière verticale à gauche, texte à droite */
-#print-root:not(.portrait) .pcell:not(.phoriz) .pbody { flex-direction: row; gap: 2.5mm; }
-#print-root:not(.portrait) .pcell:not(.phoriz) .psvg { flex: none; width: 40%; height: 100%; }
-#print-root:not(.portrait) .pcell:not(.phoriz) .ptext { flex: 1 1 0; min-height: 0; }
+.proot:not(.portrait) .pcell:not(.phoriz) .pbody { flex-direction: row; gap: 2.5mm; }
+.proot:not(.portrait) .pcell:not(.phoriz) .psvg { flex: none; width: calc(40% * var(--ak, 1)); height: 100%; }
+.proot:not(.portrait) .pcell:not(.phoriz) .ptext { flex: 1 1 0; min-height: 0; }
 .pdesc {
-  font-size: 5.6pt; line-height: 1.25; flex: none;
+  font-size: calc(5.6pt * var(--fs, 1)); line-height: 1.25; flex: none;
   display: grid; grid-template-columns: minmax(var(--split, 18%), max-content) 1fr; gap: 0.35mm 1.6mm;
 }
 .pk { font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
 .pnote {
   flex: none;
   border-top: 0.2mm solid #e4ddd2; padding-top: 1.1mm;
-  font-size: 5pt; font-style: italic; line-height: 1.25; color: #4f4840;
+  font-size: calc(5pt * var(--fs, 1)); font-style: italic; line-height: 1.25; color: #4f4840;
 }
 
 .plegend { justify-content: flex-start; }
@@ -278,7 +278,7 @@ body.tool-eraser .shape:hover { opacity: .35; }
 .lsq { width: 4.5mm; height: 4.5mm; border: 0.6px solid #555; flex: none; }
 .lic { width: 4.5mm; height: 4.5mm; flex: none; }
 .lmo { width: 10mm; height: 3.5mm; flex: none; }
-#print-root:not(.portrait) .lgrid { grid-template-columns: 1fr 1fr; column-gap: 3mm; }
+.proot:not(.portrait) .lgrid { grid-template-columns: 1fr 1fr; column-gap: 3mm; }
 
 .pfoot {
   display: flex; justify-content: space-between; gap: 6mm;
@@ -343,12 +343,12 @@ body.tool-eraser .shape:hover { opacity: .35; }
 .pdf-close { font-size: 14px; }
 
 /* Orientation portrait : 4 colonnes × 4 rangées */
-#print-root.portrait .ppage { width: 196mm; height: 283mm; }
-#print-root.portrait .pgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr)); gap: 2mm; }
-#print-root.portrait { --dh: 64mm; }
-#print-root.portrait.rows4 { --dh: 44mm; }
-#print-root.portrait .pdesc { font-size: 5.4pt; }
-#print-root.portrait .pnote { font-size: 4.8pt; }
+.proot.portrait .ppage { width: 196mm; height: 283mm; }
+.proot.portrait .pgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 4), minmax(0, 1fr)); gap: 2mm; }
+.proot.portrait { --dh: 64mm; }
+.proot.portrait.rows4 { --dh: 44mm; }
+.proot.portrait .pdesc { font-size: calc(5.4pt * var(--fs, 1)); }
+.proot.portrait .pnote { font-size: calc(4.8pt * var(--fs, 1)); }
 #print-root.portrait.exporting { width: 196mm; }
 
 #page-orient {
@@ -477,3 +477,38 @@ body.tool-edit .drawing svg:active { cursor: grabbing; }
 body.tool-move .drawing .shape { cursor: move; }
 body.tool-move .shape:hover { opacity: .7; }
 #ccn { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Options d'impression */
+.proot.no-meta .pm-len, .proot.no-meta .pm-time { display: none; }
+.proot.no-text .pdesc { display: none; }
+.proot.no-note .pnote { display: none; }
+
+/* ---------- Aperçu avant impression / export ---------- */
+.pv-overlay {
+  position: fixed; inset: 0; z-index: 1500; background: rgba(29, 27, 24, .55);
+  display: flex; align-items: stretch; justify-content: center; padding: 18px;
+}
+.pv-box {
+  background: var(--panel, #fff); border-radius: 10px; overflow: hidden;
+  display: grid; grid-template-columns: 270px 1fr; width: 100%; max-width: 1500px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.25);
+}
+.pv-side { padding: 16px; border-right: 1px solid var(--line, #e2ddd5); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
+.pv-side h2 { margin: 0; font-size: 16px; }
+.pv-side fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pv-side legend { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted, #6f675e); margin-bottom: 4px; }
+.pv-side label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.pv-side .pv-range { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.pv-side .pv-range input { grid-column: 1 / -1; width: 100%; accent-color: var(--ink, #1d1b18); }
+.pv-side .pv-range span { font-variant-numeric: tabular-nums; color: var(--muted, #6f675e); }
+.pv-side select { width: 100%; padding: 5px; }
+.pv-actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.pv-actions button { padding: 9px; font-weight: 600; border-radius: 6px; border: 1px solid var(--ink, #1d1b18); background: #fff; cursor: pointer; }
+.pv-actions button.primary { background: var(--ink, #1d1b18); color: #fff; }
+.pv-stage { overflow: auto; background: #d9d4cc; padding: 18px; }
+.pv-stage .proot { display: block; margin: 0 auto; width: max-content; }
+.pv-stage .ppage { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); margin: 0 auto 18px; box-sizing: content-box; padding: 7mm; }
+@media (max-width: 760px) {
+  .pv-box { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .pv-side { border-right: none; border-bottom: 1px solid var(--line, #e2ddd5); max-height: 45vh; }
+}

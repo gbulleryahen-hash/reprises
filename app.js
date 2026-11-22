@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026111513';
+  const APP_V = '2026112201';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -36,7 +36,7 @@
   // Allures : le MOTIF de la ligne dit l'allure, la COULEUR (+ épaisseur, espacement) dit l'intensité.
   // Couleurs choisies pour rester distinctes une fois imprimées en niveaux de gris.
   const LEVELS = [
-    { id: 'ras',  label: 'rassemblé',  short: 'ras.',  color: '#F2B01E', w: 2.6, f: 0.85 },
+    { id: 'ras',  label: 'rassemblé',  short: 'ras.',  color: '#E06A00', w: 2.6, f: 0.85 },
     { id: 'trav', label: 'de travail', short: 'trav.', color: '#4A9BE8', w: 2.9, f: 1.0 },
     { id: 'moy',  label: 'moyen',      short: 'moy.',  color: '#007F5F', w: 3.2, f: 1.1 },
     { id: 'all',  label: 'allongé',    short: 'all.',  color: '#18265A', w: 3.5, f: 1.2 },
@@ -55,7 +55,7 @@
   GAITS.push(
     { id: 'paslibre', kind: 'paslibre', lv: 'all', label: 'Pas libre', color: '#6B7F8E', w: 1.6, f: 1.0 },
     { id: 'piaffer', kind: 'piaffer', lv: 'ras',  label: 'Piaffer', color: '#D32F2F', w: 2.9, f: 0.9 },
-    { id: 'passage', kind: 'passage', lv: 'ras',  label: 'Passage', color: '#F2B01E', w: 2.6, f: 0.85 },
+    { id: 'passage', kind: 'passage', lv: 'ras',  label: 'Passage', color: '#E06A00', w: 2.6, f: 0.85 },
     { id: 'reculer', kind: 'reculer', lv: 'trav', label: 'Reculer', color: '#7B1FA2', w: 2.9, f: 1.0 },
   );
   const SPECIAL_GAITS = ['paslibre', 'piaffer', 'passage', 'reculer'];
@@ -87,10 +87,14 @@
   const SYMBOLS = [
     { id: 'halt',        label: 'Arrêt' },
     { id: 'transition',  label: 'Transition' },
-    { id: 'dt_hanches',  label: 'Demi-tour sur les hanches' },
-    { id: 'dt_epaules',  label: 'Demi-tour sur les épaules' },
-    { id: 'qt_hanches',  label: 'Quart de tour sur les hanches' },
-    { id: 'qt_epaules',  label: 'Quart de tour sur les épaules' },
+    { id: 'dt_hanches_g', label: 'Demi-tour sur les hanches à gauche' },
+    { id: 'dt_hanches',   label: 'Demi-tour sur les hanches à droite' },
+    { id: 'dt_epaules_g', label: 'Demi-tour sur les épaules à gauche' },
+    { id: 'dt_epaules',   label: 'Demi-tour sur les épaules à droite' },
+    { id: 'qt_hanches_g', label: 'Quart de tour sur les hanches à gauche' },
+    { id: 'qt_hanches',   label: 'Quart de tour sur les hanches à droite' },
+    { id: 'qt_epaules_g', label: 'Quart de tour sur les épaules à gauche' },
+    { id: 'qt_epaules',   label: 'Quart de tour sur les épaules à droite' },
     { id: 'pirouette_g', label: 'Pirouette à gauche' },
     { id: 'pirouette_d', label: 'Pirouette à droite' },
     { id: 'simple',      label: 'Changement de pied simple' },
@@ -103,7 +107,8 @@
   const GEAR = ['cone', 'barre', 'croisillon'];   // section « Matériel »
   const BLACK_SYMBOLS = ['halt', 'transition', 'cone', 'barre', 'croisillon'];
   // figures de rotation : plus grandes sur la carrière (pas dans le panneau)
-  const BIG_SYMBOLS = ['pirouette_g', 'pirouette_d', 'pirouette', 'dt_hanches', 'dt_epaules', 'qt_hanches', 'qt_epaules'];
+  const BIG_SYMBOLS = ['pirouette_g', 'pirouette_d', 'pirouette', 'dt_hanches', 'dt_epaules', 'qt_hanches', 'qt_epaules',
+    'dt_hanches_g', 'dt_epaules_g', 'qt_hanches_g', 'qt_epaules_g'];
   const symScale = k => r2(1.35 * K() * (BIG_SYMBOLS.includes(k) ? 1.35 : 1));
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
@@ -589,6 +594,8 @@
 
   // Figures ponctuelles. Repère local : +x = vers l'avant du cheval.
   function glyph(kind, color) {
+    // versions « à gauche » des demi-tours et quarts de tour : symétrique de la version à droite
+    if (/^(dt|qt)_(hanches|epaules)_g$/.test(kind)) return `<g transform="scale(1,-1)">${glyph(kind.slice(0, -2), color)}</g>`;
     switch (kind) {
       case 'halt': {
         const pts = Array.from({ length: 8 }, (_, k) => {
@@ -700,7 +707,7 @@
 
   // ---------------------------------------------------------------- État
   const newCase = (size = 60, orient = 'v2') => ({ id: uid(), size, orient, textL: '', textR: '', note: '', shapes: [] });
-  const newReprise = () => ({ version: 3, scaleV: 2, title: '', symScale: 1, lineW: 1, cases: [newCase()] });
+  const newReprise = () => ({ version: 3, scaleV: 2, title: '', symScale: 1, lineW: 1, print: printOpts(), cases: [newCase()] });
 
   // Repère des dessins (version 3, comme la version 1) : 0 = piste, clôture dessinée 1 m plus loin.
   // - version 2 (essai du 12/11) : 0 = clôture, piste à 1 m → on revient au repère de la piste ;
@@ -774,6 +781,18 @@
   const clampSplit = v => (typeof v === 'number' && v >= 8 && v <= 60 ? v : 18);
   const applySplit = () => document.documentElement.style.setProperty('--split', clampSplit(state.split) + '%');
 
+  // Options de la fiche imprimée / PDF
+  const PRINT_DEF = { meta: true, text: true, note: true, legend: true, arena: 0.9, font: 1 };
+  function printOpts(o) {
+    const p = { ...PRINT_DEF };
+    if (o && typeof o === 'object') {
+      for (const k of ['meta', 'text', 'note', 'legend']) if (typeof o[k] === 'boolean') p[k] = o[k];
+      if (typeof o.arena === 'number' && o.arena >= 0.5 && o.arena <= 1.4) p.arena = o.arena;
+      if (typeof o.font === 'number' && o.font >= 0.6 && o.font <= 1.8) p.font = o.font;
+    }
+    return p;
+  }
+
   function normalize(data) {
     if (!data || !Array.isArray(data.cases)) throw new Error('Fichier de reprise invalide');
     return {
@@ -786,6 +805,7 @@
       symScale: data.scaleV === 2 ? clampScale(data.symScale)
         : clampScale(Math.round(clampScale(data.symScale) / 1.4 * 100) / 100),
       lineW: clampLine(data.lineW),
+      print: printOpts(data.print),
       cases: data.cases.map(c => ({
         id: uid(),
         size: [40, 60, 80].includes(c.size) ? c.size : 60,
@@ -831,7 +851,8 @@
     passage: 1.5, reculer: 0.7, paslibre: 1.7,
   };
   const SYM_TIME = { halt: 6, piaffer: 10, pirouette_g: 6, pirouette_d: 6, pirouette: 6,
-    dt_hanches: 4, dt_epaules: 4, qt_hanches: 2, qt_epaules: 2, simple: 4 };
+    dt_hanches: 4, dt_epaules: 4, qt_hanches: 2, qt_epaules: 2, simple: 4,
+    dt_hanches_g: 4, dt_epaules_g: 4, qt_hanches_g: 2, qt_epaules_g: 2 };
   function speedOf(gait) {
     if (gait.kind === 'passage' || gait.kind === 'reculer' || gait.kind === 'paslibre') return SPEED[gait.kind];
     if (gait.kind === 'piaffer') return 0;
@@ -1775,6 +1796,9 @@
             <button class="icon" data-act="undo" title="Annuler (Ctrl+Z ou clic droit)">↶</button>
             <button class="icon" data-act="redo" title="Restaurer (Ctrl+Y)">↷</button>
             <button class="icon" data-act="clear" title="Effacer le dessin">⌧</button>
+            <button class="icon" data-act="dup" title="Dupliquer la figure (la copie est placée juste après)">⧉</button>
+            <button class="icon" data-act="ins-before" title="Insérer une figure vide avant celle-ci">+↑</button>
+            <button class="icon" data-act="ins-after" title="Insérer une figure vide après celle-ci">+↓</button>
             <button class="icon" data-act="up" title="Monter">↑</button>
             <button class="icon" data-act="down" title="Descendre">↓</button>
             <button class="icon danger" data-act="del" title="Supprimer la figure">✕</button>
@@ -1859,6 +1883,21 @@
         case 'clear':
           if (c.shapes.length && confirm('Effacer tout le dessin de cette case ?')) mutate(c, () => { c.shapes = []; });
           break;
+        case 'dup': {
+          const copy = { ...JSON.parse(JSON.stringify(c)), id: uid() };
+          state.cases.splice(i + 1, 0, copy);
+          save(); renderAll();
+          refs.get(copy.id).el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          break;
+        }
+        case 'ins-before':
+        case 'ins-after': {
+          const nc = newCase(c.size, c.orient);
+          state.cases.splice(b.dataset.act === 'ins-before' ? i : i + 1, 0, nc);
+          save(); renderAll();
+          refs.get(nc.id).el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          break;
+        }
         case 'up':
           if (i > 0) { state.cases.splice(i, 1); state.cases.splice(i - 1, 0, c); save(); renderAll(); }
           break;
@@ -1915,7 +1954,6 @@
     $('#line-w').value = LW();
     $('#line-w-val').textContent = Math.round(LW() * 100) + ' %';
     applySplit();
-    $('#page-orient').value = state.page === 'portrait' ? 'portrait' : 'paysage';
   }
 
   // ---------------------------------------------------------------- Barre d'outils
@@ -2102,6 +2140,7 @@
   function buildPrint() {
     let root = $('#print-root');
     if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+    root.classList.add('proot');
     const sizes = [...new Set(state.cases.map(c => c.size))];
     const sizeTxt = sizes.map(sizeLabel).join(' / ');
     const cells = state.cases.map((c, i) => {
@@ -2120,7 +2159,8 @@
         </div>
       </div>`;
     });
-    cells.push(legendCell());
+    const po = printOpts(state.print);   // copie en lecture seule
+    if (po.legend) cells.push(legendCell());
     // portrait : 4 colonnes, 3 ou 4 rangées selon ce qui remplit le mieux le moins de pages possible
     const portraitRows = () => {
       const nPages = Math.ceil(cells.length / 16);
@@ -2136,6 +2176,11 @@
     // orientation de la page (paysage : 4 × 3 cases ; portrait : 4 × 4 cases)
     const portrait = state.page === 'portrait';
     root.classList.toggle('portrait', portrait);
+    root.classList.toggle('no-meta', !po.meta);
+    root.classList.toggle('no-text', !po.text);
+    root.classList.toggle('no-note', !po.note);
+    root.style.setProperty('--ak', po.arena);
+    root.style.setProperty('--fs', po.font);
     let ps = $('#page-style');
     if (!ps) { ps = document.createElement('style'); ps.id = 'page-style'; document.head.appendChild(ps); }
     ps.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 7mm; }`;
@@ -2151,8 +2196,8 @@
           <dl class="pmeta">
             ${sizeTxt ? `<div><dt>Carrière</dt><dd>${sizeTxt}</dd></div>` : ''}
             <div><dt>Figures</dt><dd>${n}</dd></div>
-            <div><dt>Parcours</dt><dd>${len} m</dd></div>
-            <div><dt>Durée</dt><dd>≈ ${time}</dd></div>
+            <div class="pm-len"><dt>Parcours</dt><dd>${len} m</dd></div>
+            <div class="pm-time"><dt>Durée</dt><dd>≈ ${time}</dd></div>
             <div class="ppg"><dt>Page</dt><dd>${k + 1} / ${pages.length}</dd></div>
           </dl>
         </header>
@@ -2175,7 +2220,7 @@
   }
 
   async function exportPdf() {
-    const btn = $('#btn-pdf'), label = btn.textContent;
+    const btn = $('#pv-pdf') || $('#btn-pdf'), label = btn.textContent;
     btn.disabled = true; btn.textContent = 'PDF en cours…';
     const overlay = document.createElement('div');
     overlay.className = 'pdf-overlay';
@@ -2223,6 +2268,71 @@
     }
   }
 
+  // ---------------------------------------------------------------- Aperçu avant impression
+  function openPreview() {
+    if ($('.pv-overlay')) return;
+    const po = state.print = printOpts(state.print);
+    const ov = document.createElement('div');
+    ov.className = 'pv-overlay no-print';
+    const chk = (k, t) => `<label><input type="checkbox" data-pk="${k}" ${po[k] ? 'checked' : ''}> ${t}</label>`;
+    const rng = (k, t, min, max) => `<div class="pv-range"><label for="pv-${k}">${t}</label><span id="pv-${k}-v"></span>
+        <input type="range" id="pv-${k}" data-pr="${k}" min="${min}" max="${max}" step="0.05" value="${po[k]}" title="Double-clic : valeur par défaut"></div>`;
+    ov.innerHTML = `<div class="pv-box" role="dialog" aria-label="Aperçu avant impression">
+      <div class="pv-side">
+        <h2>Aperçu avant impression</h2>
+        <fieldset><legend>Page</legend>
+          <select id="pv-orient"><option value="paysage">A4 paysage</option><option value="portrait">A4 portrait</option></select>
+        </fieldset>
+        <fieldset><legend>Afficher</legend>
+          ${chk('meta', 'Distance et durée')}
+          ${chk('text', 'Lettres et mouvements')}
+          ${chk('note', 'Idées directrices')}
+          ${chk('legend', 'Légende')}
+        </fieldset>
+        <fieldset><legend>Tailles</legend>
+          ${rng('arena', 'Carrière', 0.5, 1.4)}
+          ${rng('font', 'Texte', 0.6, 1.8)}
+        </fieldset>
+        <div class="pv-actions">
+          <button type="button" class="primary" id="pv-pdf">Télécharger le PDF</button>
+          <button type="button" id="pv-print">Imprimer</button>
+          <button type="button" id="pv-close">Fermer</button>
+        </div>
+      </div>
+      <div class="pv-stage"></div>
+    </div>`;
+    document.body.appendChild(ov);
+    const stage = ov.querySelector('.pv-stage');
+    const refresh = () => {
+      buildPrint();
+      for (const k of ['arena', 'font']) ov.querySelector(`#pv-${k}-v`).textContent = Math.round(po[k] * 100) + ' %';
+      const root = $('#print-root'), clone = root.cloneNode(true);
+      clone.removeAttribute('id');
+      const pageMm = (state.page === 'portrait' ? 196 : 283) + 14;
+      const avail = stage.clientWidth - 36;
+      clone.style.zoom = Math.min(1.4, Math.max(0.3, avail / (pageMm * 3.7795)));
+      stage.replaceChildren(clone);
+    };
+    const sel = ov.querySelector('#pv-orient');
+    sel.value = state.page === 'portrait' ? 'portrait' : 'paysage';
+    sel.onchange = () => { state.page = sel.value; save(); refresh(); };
+    ov.querySelectorAll('[data-pk]').forEach(i => { i.onchange = () => { po[i.dataset.pk] = i.checked; save(); refresh(); }; });
+    ov.querySelectorAll('[data-pr]').forEach(i => {
+      i.oninput = () => { po[i.dataset.pr] = +i.value; refresh(); };
+      i.onchange = save;
+      i.ondblclick = () => { po[i.dataset.pr] = PRINT_DEF[i.dataset.pr]; i.value = po[i.dataset.pr]; save(); refresh(); };
+    });
+    const close = () => { ov.remove(); window.removeEventListener('resize', refresh); document.removeEventListener('keydown', esc_); };
+    const esc_ = e => { if (e.key === 'Escape' && !$('.pdf-overlay')) close(); };
+    ov.querySelector('#pv-close').onclick = close;
+    ov.addEventListener('pointerdown', e => { if (e.target === ov) close(); });
+    ov.querySelector('#pv-print').onclick = () => { buildPrint(); window.print(); };
+    ov.querySelector('#pv-pdf').onclick = exportPdf;
+    window.addEventListener('resize', refresh);
+    document.addEventListener('keydown', esc_);
+    refresh();
+  }
+
   // ---------------------------------------------------------------- Fichiers
   function fileName() {
     const base = (state.title || 'reprise').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -2247,8 +2357,8 @@
       state = newReprise(); history.clear(); redoStack.clear(); save(); renderAll();
     };
     $('#btn-save').onclick = download;
-    $('#btn-print').onclick = () => { buildPrint(); window.print(); };
-    $('#btn-pdf').onclick = exportPdf;
+    $('#btn-print').onclick = () => openPreview();
+    $('#btn-pdf').onclick = () => openPreview();
     // plein écran
     const fsBtn = $('#btn-full');
     const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -2261,7 +2371,13 @@
     };
     document.addEventListener('fullscreenchange', fsLabel);
     document.addEventListener('webkitfullscreenchange', fsLabel);
-    $('#page-orient').onchange = e => { state.page = e.target.value; save(); };
+    $('#all-orient').onchange = e => {
+      const v = e.target.value;
+      e.target.value = '';
+      if (!v) return;
+      state.cases.forEach(c => { c.orient = v; });
+      save(); renderAll();
+    };
     window.addEventListener('beforeprint', buildPrint);   // aussi pour Ctrl+P
     $('#btn-open').onclick = () => $('#file-input').click();
     $('#file-input').onchange = async e => {
