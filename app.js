@@ -16,7 +16,7 @@
 (() => {
   // Garde-fou de version : si le navigateur (ou GitHub Pages) a servi un ancien app.js ou style.css
   // avec la nouvelle page, index.html recharge app.js en contournant le cache, et la feuille de style ici.
-  const APP_V = '2026112201';
+  const APP_V = '2026112202';
   if (window.APP_V && window.APP_V !== APP_V) return;   // fichier périmé : on ne lance rien
   window.APP_LOADED = APP_V;
   (function checkCss() {
@@ -99,16 +99,18 @@
     { id: 'pirouette_d', label: 'Pirouette à droite' },
     { id: 'simple',      label: 'Changement de pied simple' },
     { id: 'une_main',    label: 'Guides / rênes dans une main' },
+    { id: 'ext_encolure', label: 'Extension d’encolure' },
+    { id: 'rompre',      label: 'Rompre le contact (descente de main)' },
     { id: 'cone',        label: 'Cône' },
     { id: 'barre',       label: 'Barre au sol' },
     { id: 'croisillon',  label: 'Croisillon' },
   ];
-  const UNROTATED = ['halt', 'cone', 'simple', 'une_main'];
+  const UNROTATED = ['halt', 'cone', 'simple', 'une_main', 'ext_encolure', 'rompre'];
   const GEAR = ['cone', 'barre', 'croisillon'];   // section « Matériel »
   const BLACK_SYMBOLS = ['halt', 'transition', 'cone', 'barre', 'croisillon'];
   // figures de rotation : plus grandes sur la carrière (pas dans le panneau)
   const BIG_SYMBOLS = ['pirouette_g', 'pirouette_d', 'pirouette', 'dt_hanches', 'dt_epaules', 'qt_hanches', 'qt_epaules',
-    'dt_hanches_g', 'dt_epaules_g', 'qt_hanches_g', 'qt_epaules_g'];
+    'dt_hanches_g', 'dt_epaules_g', 'qt_hanches_g', 'qt_epaules_g', 'ext_encolure'];
   const symScale = k => r2(1.35 * K() * (BIG_SYMBOLS.includes(k) ? 1.35 : 1));
 
   // Types de déplacement : restent enclenchés et décorent automatiquement le parcours
@@ -630,6 +632,15 @@
           `<rect x="3.9" y="-11" width="3.1" height="10" rx="1.55"/>` +
           `<rect x="-6.8" y="-3.5" width="14" height="13" rx="4.5"/>` +
           `</g><path d="M-5,4.5L-10.5,-1.5" stroke="${color}" stroke-width="3.3" stroke-linecap="round" fill="none"/>`;
+      case 'ext_encolure':   // tête de profil, encolure étendue vers l'avant et le bas
+        return `<g fill="none" stroke="${color}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">` +
+          `<path d="M-16,-7C-8,-7 -2,-6.4 2,-4.6L13,1.6"/>` +                       // dessus de l'encolure jusqu'au bout du nez
+          `<path d="M-3,0.5C-3.6,5 -1.6,7 1.6,7L4,6L5.4,7H13.6V3.4L13,1.6"/>` +     // gorge, ganache, bouche
+          `</g><path d="M1.4,-4.4L6.2,-10.4L4.6,-3.4Z" fill="${color}"/>` +          // oreille
+          `<circle cx="5.4" cy="0.6" r="1.2" fill="${color}"/>`;                     // œil
+      case 'rompre':   // main qui avance : la main se donne, le contact est rompu
+        return `<g transform="translate(-6,1)">${glyph('une_main', color)}</g>` +
+          ln('M5,-3H16', color, 2.8) + `<path d="M12,-8L18,-3L12,2" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
       case 'transition':   // barre en travers du tracé + petite flèche : changement d'allure
         return ln('M-3,-10V10', color, 3.4) + `<path d="M2,-4.5L9,0L2,4.5Z" fill="${color}"/>`;
       case 'piaffer':    // piaffer posé sur place : une ellipse
